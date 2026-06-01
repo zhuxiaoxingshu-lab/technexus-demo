@@ -35,6 +35,7 @@ DB_FILE = DATA_DIR / "technexus.db"
 DATABASE_URL = os.getenv("TECHNEXUS_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
 SESSION_COOKIE = "technexus_admin_session"
 SESSION_SECONDS = 8 * 60 * 60
+AGREEMENT_VERSION = "TechNexus-2026-06-01-v2"
 INTENT_STATUSES = [
     "待审核",
     "已联系成果方",
@@ -1450,7 +1451,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 "intent_id": uuid.uuid4().hex,
                 "created_at": now_iso(),
                 "status": "待审核",
-                "agreement_version": "TechNexus-2026-05-31-v1",
+                "agreement_version": AGREEMENT_VERSION,
                 "submission_id": clean_text(payload.get("submission_id", "")),
                 "contact": {clean_text(k): clean_text(v) for k, v in contact.items()},
                 "message": clean_text(payload.get("message", "")),

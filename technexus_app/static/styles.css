@@ -660,6 +660,40 @@ textarea:focus {
   margin: 0 0 12px;
 }
 
+.agreement-full {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 12px 0 14px;
+}
+
+.agreement-full section {
+  border-bottom: 1px solid #edf3f1;
+  padding: 0 0 10px;
+  margin: 0 0 10px;
+}
+
+.agreement-full section:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.agreement-full h3 {
+  margin: 0 0 7px;
+  font-size: 14px;
+}
+
+.agreement-full p {
+  margin: 0 0 8px;
+  color: #40534e;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
 .check-row {
   display: flex;
   align-items: flex-start;

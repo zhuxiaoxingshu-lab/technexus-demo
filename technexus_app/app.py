@@ -646,7 +646,7 @@ def refine_matches_with_ai(config: dict, submission: dict, local_results: list[d
     if not ai_is_configured(config):
         for item in local_results:
             item["scoring_source"] = "本地规则"
-        return local_results, {"used_ai": False, "message": "未配置 DeepSeek API，已使用本地规则匹配。"}
+        return local_results, {"used_ai": False, "match_mode": "ai", "message": "未配置 DeepSeek API，已使用本地规则匹配。"}
 
     try:
         messages = build_ai_messages(submission, local_results)
@@ -655,6 +655,7 @@ def refine_matches_with_ai(config: dict, submission: dict, local_results: list[d
         refined = merge_ai_results(local_results, ai_payload, config)
         return refined, {
             "used_ai": True,
+            "match_mode": "ai",
             "message": "已使用 DeepSeek API 进行 AI 精排。",
             "model": clean_text(config.get("model", "")),
         }
@@ -663,8 +664,19 @@ def refine_matches_with_ai(config: dict, submission: dict, local_results: list[d
             item["scoring_source"] = "本地规则"
         return local_results, {
             "used_ai": False,
+            "match_mode": "ai",
             "message": f"DeepSeek AI 精排失败，已自动退回本地规则：{exc}",
         }
+
+
+def use_quick_match(local_results: list[dict]) -> tuple[list[dict], dict]:
+    for item in local_results:
+        item["scoring_source"] = "快速匹配"
+    return local_results, {
+        "used_ai": False,
+        "match_mode": "quick",
+        "message": "已使用快速匹配，仅通过本地需求库关键词和规则计算，未调用 DeepSeek API。",
+    }
 
 
 def ensure_data_dir() -> None:
@@ -1243,6 +1255,25 @@ def ensure_admin_config() -> dict:
     return config
 
 
+def login_matches_admin(username: str, password: str, config: dict) -> tuple[bool, str]:
+    env_username = clean_text(os.getenv("TECHNEXUS_ADMIN_USERNAME")) or "admin"
+    env_password = clean_text(os.getenv("TECHNEXUS_ADMIN_PASSWORD"))
+    username = clean_text(username)
+    password = clean_text(password)
+    if env_password:
+        return (
+            username == env_username and hmac.compare_digest(password, env_password),
+            env_username,
+        )
+
+    expected_user = clean_text(config.get("username"))
+    expected_hash = clean_text(config.get("password_hash"))
+    return (
+        username == expected_user and verify_password(password, expected_hash),
+        expected_user,
+    )
+
+
 def parse_cookie(header: str) -> dict[str, str]:
     cookies: dict[str, str] = {}
     for part in (header or "").split(";"):
@@ -1340,15 +1371,14 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             payload = self.read_json()
             username = clean_text(payload.get("username"))
             password = clean_text(payload.get("password"))
-            expected_user = clean_text(self.admin_config.get("username"))
-            expected_hash = clean_text(self.admin_config.get("password_hash"))
-            if username != expected_user or not verify_password(password, expected_hash):
+            ok, admin_username = login_matches_admin(username, password, self.admin_config)
+            if not ok:
                 self.send_error_json(HTTPStatus.UNAUTHORIZED, "账号或密码不正确")
                 return
             token = secrets.token_urlsafe(32)
-            self.admin_sessions[token] = {"username": username, "expires_at": time.time() + SESSION_SECONDS}
+            self.admin_sessions[token] = {"username": admin_username, "expires_at": time.time() + SESSION_SECONDS}
             cookie = f"{SESSION_COOKIE}={token}; Path=/; Max-Age={SESSION_SECONDS}; HttpOnly; SameSite=Lax"
-            self.send_json({"ok": True, "username": username}, headers={"Set-Cookie": cookie})
+            self.send_json({"ok": True, "username": admin_username}, headers={"Set-Cookie": cookie})
             return
 
         if parsed.path == "/api/admin/logout":
@@ -1361,7 +1391,14 @@ class TechNexusHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/match":
             payload = self.read_json()
-            submission = {clean_text(k): clean_text(v) for k, v in payload.items()}
+            match_mode = clean_text(payload.get("match_mode") or payload.get("_match_mode") or "ai").lower()
+            if match_mode not in {"quick", "ai"}:
+                match_mode = "ai"
+            submission = {
+                clean_text(k): clean_text(v)
+                for k, v in payload.items()
+                if clean_text(k) not in {"match_mode", "_match_mode"}
+            }
             submission_id = uuid.uuid4().hex
             record = {
                 "submission_id": submission_id,
@@ -1369,7 +1406,10 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 "submission": submission,
             }
             local_results = match_demands(self.store, submission, limit=12)
-            refined_results, ai_meta = refine_matches_with_ai(self.ai_config, submission, local_results)
+            if match_mode == "quick":
+                refined_results, ai_meta = use_quick_match(local_results)
+            else:
+                refined_results, ai_meta = refine_matches_with_ai(self.ai_config, submission, local_results)
             results = refined_results[:8]
             save_submission(record)
             save_match(
@@ -1387,6 +1427,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                     "submission_id": submission_id,
                     "results": results,
                     "ai_meta": ai_meta,
+                    "match_mode": match_mode,
                     **self.store.stats(),
                     **ai_status(self.ai_config),
                     "intent_count": db_count("intents"),

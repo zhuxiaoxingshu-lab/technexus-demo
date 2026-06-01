@@ -20,6 +20,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -186,6 +190,61 @@ main {
 
 .top-actions.left {
   justify-content: flex-start;
+}
+
+.match-mode-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.match-mode-panel.compact {
+  margin-bottom: 18px;
+}
+
+.mode-option {
+  min-height: 88px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: var(--ink);
+  padding: 13px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 4px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mode-option svg {
+  grid-row: 1 / 3;
+  width: 21px;
+  height: 21px;
+  color: var(--teal);
+}
+
+.mode-option strong {
+  font-size: 15px;
+}
+
+.mode-option span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mode-option.active {
+  border-color: var(--teal);
+  background: #eefaf6;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+}
+
+.mode-hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .btn {
@@ -908,6 +967,7 @@ th {
   .quick-form,
   .form-grid,
   .login-form,
+  .match-mode-panel,
   .metric-grid,
   .score-stack,
   .process,

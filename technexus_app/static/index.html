@@ -70,6 +70,19 @@
                     <textarea id="home-summary">用于电子器件热管理的高导热复合材料，具备较好的界面结合、加工稳定性和规模化制备潜力。</textarea>
                   </label>
                 </div>
+                <div class="match-mode-panel" aria-label="匹配方式">
+                  <button type="button" class="mode-option active" data-match-mode="ai" aria-pressed="true">
+                    <i data-lucide="sparkles"></i>
+                    <strong>AI智能匹配</strong>
+                    <span>调用 DeepSeek API 精排并生成匹配理由</span>
+                  </button>
+                  <button type="button" class="mode-option" data-match-mode="quick" aria-pressed="false">
+                    <i data-lucide="scan-search"></i>
+                    <strong>快速匹配</strong>
+                    <span>不调用 API，仅用本地规则模糊匹配</span>
+                  </button>
+                </div>
+                <div id="match-mode-hint" class="mode-hint">AI智能匹配会调用 DeepSeek API，对候选需求做精排并生成更细的理由。</div>
                 <div class="top-actions left">
                   <button class="btn primary" id="home-match"><i data-lucide="scan-search"></i>查看匹配示例</button>
                   <button class="btn warning" data-view="intent"><i data-lucide="file-check-2"></i>查看撮合协议</button>
@@ -78,7 +91,7 @@
                   <div class="metric"><strong id="home-demand-count">-</strong><span>已入库技术需求</span></div>
                   <div class="metric"><strong>100</strong><span>匹配评分总分</span></div>
                   <div class="metric"><strong>5%</strong><span>成交后服务费率</span></div>
-                  <div class="metric"><strong id="home-ai-mode">-</strong><span>当前匹配模式</span></div>
+                  <div class="metric"><strong id="home-ai-mode">-</strong><span>AI 状态</span></div>
                 </div>
               </div>
             </div>
@@ -116,9 +129,21 @@
                 <h2>技术成果提交</h2>
                 <p>字段都不是必填，写得越详细，匹配越精准。</p>
               </div>
-              <button class="btn primary" id="submit-match"><i data-lucide="sparkles"></i>开始智能匹配</button>
+              <button class="btn primary" id="submit-match"><i data-lucide="sparkles"></i>开始AI智能匹配</button>
             </div>
             <div class="band-body">
+              <div class="match-mode-panel compact" aria-label="匹配方式">
+                <button type="button" class="mode-option active" data-match-mode="ai" aria-pressed="true">
+                  <i data-lucide="sparkles"></i>
+                  <strong>AI智能匹配</strong>
+                  <span>调用 DeepSeek API 精排候选需求</span>
+                </button>
+                <button type="button" class="mode-option" data-match-mode="quick" aria-pressed="false">
+                  <i data-lucide="scan-search"></i>
+                  <strong>快速匹配</strong>
+                  <span>不调用 API，立即返回本地规则结果</span>
+                </button>
+              </div>
               <form id="submission-form" class="form-grid">
                 <label>
                   成果名称
@@ -303,7 +328,7 @@
               <div class="kpi"><span>需求库</span><strong id="admin-demand-count">-</strong></div>
               <div class="kpi"><span>匹配记录</span><strong id="admin-match-count">-</strong></div>
               <div class="kpi"><span>合作意向</span><strong id="admin-intent-count">-</strong></div>
-              <div class="kpi"><span>匹配模式</span><strong id="admin-ai-mode">-</strong></div>
+              <div class="kpi"><span>AI 状态</span><strong id="admin-ai-mode">-</strong></div>
             </div>
             <div class="admin-layout">
             <div class="band">

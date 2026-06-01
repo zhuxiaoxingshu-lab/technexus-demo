@@ -3,6 +3,7 @@ const state = {
   submission: {},
   results: [],
   selectedResult: null,
+  matchMode: "ai",
   adminAuthenticated: false,
   adminUsername: "",
   adminStatuses: [],
@@ -59,6 +60,9 @@ function showView(id) {
     $("#page-subtitle").textContent = titleMap[id][1];
   }
   if (id === "admin") {
+    if (!state.adminAuthenticated) {
+      setAdminView(false, "");
+    }
     loadAdmin();
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -115,11 +119,41 @@ function setButtonLoading(button, loading, text) {
   refreshIcons();
 }
 
+function currentMatchModeLabel() {
+  return state.matchMode === "quick" ? "快速匹配" : "AI智能匹配";
+}
+
+function setMatchMode(mode) {
+  state.matchMode = mode === "quick" ? "quick" : "ai";
+  $all("[data-match-mode]").forEach((button) => {
+    const active = button.dataset.matchMode === state.matchMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  const hint = $("#match-mode-hint");
+  if (hint) {
+    hint.textContent =
+      state.matchMode === "quick"
+        ? "快速匹配不会调用 DeepSeek API，适合先看大致方向。"
+        : "AI智能匹配会调用 DeepSeek API，对候选需求做精排并生成更细的理由。";
+  }
+  const submitButton = $("#submit-match");
+  if (submitButton) {
+    submitButton.innerHTML =
+      state.matchMode === "quick"
+        ? '<i data-lucide="scan-search"></i>开始快速匹配'
+        : '<i data-lucide="sparkles"></i>开始AI智能匹配';
+    refreshIcons();
+  }
+}
+
 async function runMatch(payload, button) {
   const data = payload || formDataToObject($("#submission-form"));
+  data.match_mode = state.matchMode;
   state.submission = data;
-  setButtonLoading(button, true, "正在匹配");
-  $("#result-status").textContent = "正在从需求库中计算匹配结果...";
+  setButtonLoading(button, true, state.matchMode === "quick" ? "快速匹配中" : "AI匹配中");
+  $("#result-status").textContent =
+    state.matchMode === "quick" ? "正在进行快速匹配，不调用 DeepSeek API..." : "正在调用 DeepSeek API 进行智能匹配...";
   $("#result-status").style.display = "block";
   $("#result-list").innerHTML = "";
   try {
@@ -136,7 +170,7 @@ async function runMatch(payload, button) {
     renderResults(state.results);
     updateStats(response);
     showView("results");
-    toast(`${response.ai_meta?.used_ai ? "DeepSeek AI 已精排" : "本地规则已匹配"}，生成 ${state.results.length} 条结果`);
+    toast(`${response.ai_meta?.used_ai ? "DeepSeek AI 已精排" : currentMatchModeLabel() + "已完成"}，生成 ${state.results.length} 条结果`);
   } catch (error) {
     $("#result-status").textContent = error.message;
     toast(error.message);
@@ -300,6 +334,7 @@ async function loadAdmin() {
     const session = await api("/api/admin/session");
     setAdminView(session.authenticated, session.username || "");
     if (!session.authenticated) {
+      resetAdminData();
       return;
     }
     const query = intentFilterQuery();
@@ -312,6 +347,11 @@ async function loadAdmin() {
       await loadDemandPreview();
     }
   } catch (error) {
+    if (error.status === 401) {
+      setAdminView(false, "");
+      resetAdminData();
+      return;
+    }
     toast(error.message);
   }
 }
@@ -357,6 +397,18 @@ function exportIntents() {
     return;
   }
   window.location.href = `/api/intents/export${intentFilterQuery()}`;
+}
+
+function resetAdminData() {
+  $("#admin-demand-count").textContent = "-";
+  $("#admin-match-count").textContent = "-";
+  $("#admin-intent-count").textContent = "-";
+  $("#admin-ai-mode").textContent = "-";
+  $("#intent-table").innerHTML = `<tr><td colspan="8">登录后显示合作意向</td></tr>`;
+  $("#intent-detail").className = "intent-detail empty-state";
+  $("#intent-detail").textContent = "登录后查看线索详情。";
+  $("#demand-preview").dataset.loaded = "";
+  $("#demand-preview").innerHTML = "";
 }
 
 function setAdminView(authenticated, username = "") {
@@ -597,6 +649,9 @@ function bindEvents() {
     event.preventDefault();
     loginAdmin($("#admin-login-submit"));
   });
+  $all("[data-match-mode]").forEach((button) => {
+    button.addEventListener("click", () => setMatchMode(button.dataset.matchMode));
+  });
   $("#intent-filter").addEventListener("click", applyIntentFilters);
   $("#intent-clear-filter").addEventListener("click", clearIntentFilters);
   $("#intent-export").addEventListener("click", exportIntents);
@@ -617,6 +672,7 @@ function bindEvents() {
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
+  setMatchMode("ai");
   loadStats();
   refreshIcons();
 });

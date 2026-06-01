@@ -1,0 +1,5 @@
+{
+  "username": "admin",
+  "password_hash": "不要手工填写。部署后运行 python technexus_app/set_admin_password.py 生成。",
+  "note": "服务器上不要使用默认密码。"
+}

@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TechNexus 技术经理人试用版</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">TN</div>
+        <div>
+          <strong>TechNexus</strong>
+          <span>技术经理人</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="主导航">
+        <button class="active" data-view="home" title="首页"><i data-lucide="home"></i><span>首页</span></button>
+        <button data-view="submit" title="成果提交"><i data-lucide="file-plus-2"></i><span>成果提交</span></button>
+        <button data-view="results" title="匹配结果"><i data-lucide="scan-search"></i><span>匹配结果</span></button>
+        <button data-view="intent" title="合作意向"><i data-lucide="handshake"></i><span>合作意向</span></button>
+        <button data-view="admin" title="后台管理"><i data-lucide="layout-dashboard"></i><span>后台管理</span></button>
+      </nav>
+      <div class="fee-note">
+        <strong>5%</strong>
+        <span>通过平台撮合并实际成交后，按成交金额收取技术撮合中介服务费。</span>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <h1 id="page-title">技术成果找需求</h1>
+          <p id="page-subtitle">提交技术成果，AI 匹配真实技术需求，合作意向由平台人工审核撮合。</p>
+        </div>
+        <div class="top-actions">
+          <button class="btn ghost" data-view="admin"><i data-lucide="lock-keyhole"></i>进入后台</button>
+          <button class="btn primary" data-view="submit"><i data-lucide="sparkles"></i>开始匹配</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <section class="view active" id="home">
+          <div class="hero-grid">
+            <div class="band">
+              <div class="band-body match-panel">
+                <div>
+                  <h2 class="intro-title">提交技术成果，匹配可对接的企业技术需求</h2>
+                  <p class="intro-copy">TechNexus 技术经理人基于 JSTEC 真实需求库进行智能分析和人工撮合。前台不展示需求方联系方式，合作意向统一进入后台审核。</p>
+                </div>
+                <div class="quick-form">
+                  <label>
+                    成果名称
+                    <input id="home-title" value="高导热石墨烯复合散热材料" />
+                  </label>
+                  <label>
+                    技术领域
+                    <select id="home-field">
+                      <option>新材料</option>
+                      <option>电子信息</option>
+                      <option>生物与新医药</option>
+                      <option>先进制造与自动化</option>
+                      <option>新能源</option>
+                    </select>
+                  </label>
+                  <label class="full">
+                    技术成果简介
+                    <textarea id="home-summary">用于电子器件热管理的高导热复合材料，具备较好的界面结合、加工稳定性和规模化制备潜力。</textarea>
+                  </label>
+                </div>
+                <div class="top-actions left">
+                  <button class="btn primary" id="home-match"><i data-lucide="scan-search"></i>查看匹配示例</button>
+                  <button class="btn warning" data-view="intent"><i data-lucide="file-check-2"></i>查看撮合协议</button>
+                </div>
+                <div class="metric-grid">
+                  <div class="metric"><strong id="home-demand-count">-</strong><span>已入库技术需求</span></div>
+                  <div class="metric"><strong>100</strong><span>匹配评分总分</span></div>
+                  <div class="metric"><strong>5%</strong><span>成交后服务费率</span></div>
+                  <div class="metric"><strong id="home-ai-mode">-</strong><span>当前匹配模式</span></div>
+                </div>
+              </div>
+            </div>
+            <aside class="fee-card">
+              <div>
+                <h2>收费规则明示</h2>
+                <div class="fee-number">5%</div>
+                <p>AI 匹配结果可免费查看。若通过平台撮合并最终成交，按实际成交金额收取技术撮合中介服务费。</p>
+              </div>
+              <button class="btn primary" data-view="intent"><i data-lucide="file-signature"></i>查看中介协议</button>
+            </aside>
+          </div>
+
+          <div class="band">
+            <div class="band-header">
+              <div>
+                <h2>服务流程</h2>
+                <p>从成果提交到人工撮合的最小闭环。</p>
+              </div>
+            </div>
+            <div class="band-body process">
+              <div class="step"><span class="index">1</span><strong>提交成果</strong><span>用户描述技术成果、应用场景和成熟度。</span></div>
+              <div class="step"><span class="index">2</span><strong>智能分析</strong><span>提取技术领域、产业方向和关键词。</span></div>
+              <div class="step"><span class="index">3</span><strong>匹配需求</strong><span>从真实需求库召回并精排候选项目。</span></div>
+              <div class="step"><span class="index">4</span><strong>提交意向</strong><span>用户确认协议后发起合作申请。</span></div>
+              <div class="step"><span class="index">5</span><strong>人工撮合</strong><span>平台审核后联系双方推动合作。</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="submit">
+          <div class="band">
+            <div class="band-header">
+              <div>
+                <h2>技术成果提交</h2>
+                <p>字段都不是必填，写得越详细，匹配越精准。</p>
+              </div>
+              <button class="btn primary" id="submit-match"><i data-lucide="sparkles"></i>开始智能匹配</button>
+            </div>
+            <div class="band-body">
+              <form id="submission-form" class="form-grid">
+                <label>
+                  成果名称
+                  <input name="title" placeholder="例如：高导热石墨烯复合散热材料" />
+                </label>
+                <label>
+                  技术领域
+                  <select name="tech_field">
+                    <option value="">请选择或留空</option>
+                    <option>新材料</option>
+                    <option>新能源</option>
+                    <option>电子信息</option>
+                    <option>先进制造与自动化</option>
+                    <option>生物与新医药</option>
+                    <option>节能环保</option>
+                    <option>航空航天</option>
+                    <option>现代农业</option>
+                  </select>
+                </label>
+                <label>
+                  所在地区
+                  <input name="region" placeholder="例如：江苏省 / 无锡市" />
+                </label>
+                <label class="full">
+                  应用场景
+                  <textarea name="application_scene" placeholder="这项成果主要用在哪些行业、产品或生产环节？"></textarea>
+                </label>
+                <label class="full">
+                  技术成果摘要
+                  <textarea name="summary" placeholder="请描述技术原理、核心指标、已完成工作、适合解决的问题。"></textarea>
+                </label>
+                <label class="full">
+                  核心技术优势
+                  <textarea name="advantages" placeholder="例如成本更低、效率更高、可靠性更好、可规模化等。"></textarea>
+                </label>
+                <label class="full">
+                  解决的问题
+                  <textarea name="problem" placeholder="希望帮助企业解决什么痛点？"></textarea>
+                </label>
+                <label>
+                  当前成熟度
+                  <select name="maturity">
+                    <option value="">请选择或留空</option>
+                    <option>概念阶段</option>
+                    <option>实验室阶段</option>
+                    <option>小试</option>
+                    <option>中试</option>
+                    <option>已量产</option>
+                    <option>已有客户案例</option>
+                  </select>
+                </label>
+                <label>
+                  知识产权情况
+                  <select name="ip_status">
+                    <option value="">请选择或留空</option>
+                    <option>专利</option>
+                    <option>软著</option>
+                    <option>论文</option>
+                    <option>技术秘密</option>
+                    <option>暂无</option>
+                  </select>
+                </label>
+                <label>
+                  期望合作方式
+                  <select name="cooperation">
+                    <option value="">请选择或留空</option>
+                    <option>技术转让</option>
+                    <option>许可使用</option>
+                    <option>合作开发</option>
+                    <option>技术服务</option>
+                    <option>联合申报项目</option>
+                    <option>融资或产业化合作</option>
+                  </select>
+                </label>
+                <label class="full">
+                  补充说明 / 相关链接
+                  <input name="extra_note" placeholder="可填写专利号、论文链接、产品网页、案例说明等。" />
+                </label>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="results">
+          <div class="band">
+            <div class="band-header">
+              <div>
+                <h2>AI 匹配结果</h2>
+                <p>展示匹配分数、理由和合作建议，不展示需求方联系方式。</p>
+              </div>
+              <button class="btn ghost" data-view="submit"><i data-lucide="pencil"></i>修改成果</button>
+            </div>
+            <div class="band-body">
+              <div id="result-status" class="empty-state">请先提交技术成果，系统会返回最匹配的需求。</div>
+              <div id="result-list" class="result-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="intent">
+          <div class="agreement">
+            <div class="band">
+              <div class="band-header">
+                <div>
+                  <h2>合作意向提交</h2>
+                  <p>确认协议后，线索进入后台待审核。</p>
+                </div>
+              </div>
+              <div class="band-body">
+                <div id="selected-demand" class="selected-demand">请先在匹配结果中选择“我想合作”的需求。</div>
+                <div class="agreement-box">
+                  <strong>《中介服务协议》摘要</strong>
+                  <p>若用户通过 TechNexus 技术经理人撮合，并最终与需求方达成实际合作，平台将按实际成交金额的 5% 收取技术撮合中介服务费。平台不承诺合作必然达成，AI 匹配结果仅作为推荐参考，正式撮合前由平台人工审核。</p>
+                  <label class="check-row">
+                    <input type="checkbox" id="agreement-check" />
+                    <span>我已阅读并同意《中介服务协议》，确认通过平台撮合成交后按实际成交金额的 5% 支付中介服务费。</span>
+                  </label>
+                </div>
+                <form id="intent-form" class="form-grid">
+                  <label>
+                    姓名
+                    <input name="name" placeholder="请输入姓名" />
+                  </label>
+                  <label>
+                    手机号
+                    <input name="phone" placeholder="用于平台人工联系" />
+                  </label>
+                  <label>
+                    单位
+                    <input name="company" placeholder="可留空" />
+                  </label>
+                  <label class="full">
+                    留言
+                    <textarea name="message" placeholder="希望平台如何协助撮合？"></textarea>
+                  </label>
+                  <label class="full">
+                    补充说明 / 相关链接
+                    <input name="extra_note" placeholder="可填写专利号、案例链接、产品网页或其他希望平台了解的信息。" />
+                  </label>
+                </form>
+                <div class="top-actions left">
+                  <button class="btn primary" id="intent-submit"><i data-lucide="send"></i>提交合作意向</button>
+                </div>
+              </div>
+            </div>
+            <aside class="fee-card compact">
+              <h2>平台撮合原则</h2>
+              <p>前台不展示需求方联系方式。你提交合作意向后，由平台审核成果、匹配理由和协议确认记录，再联系双方推进合作。</p>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="admin">
+          <div class="band admin-login" id="admin-login-panel">
+            <div class="band-header">
+              <div>
+                <h2>管理员登录</h2>
+                <p>登录后查看合作意向、需求库预览和状态流转。</p>
+              </div>
+            </div>
+            <div class="band-body">
+              <form id="admin-login-form" class="login-form">
+                <label>
+                  管理员账号
+                  <input name="username" autocomplete="username" placeholder="admin" />
+                </label>
+                <label>
+                  密码
+                  <input name="password" type="password" autocomplete="current-password" placeholder="请输入管理员密码" />
+                </label>
+                <button class="btn primary" id="admin-login-submit" type="submit"><i data-lucide="log-in"></i>登录后台</button>
+              </form>
+            </div>
+          </div>
+
+          <div id="admin-content" class="admin-content" hidden>
+            <div class="admin-session">
+              <span>当前管理员：<strong id="admin-username">-</strong></span>
+              <button class="btn ghost" id="admin-logout"><i data-lucide="log-out"></i>退出登录</button>
+            </div>
+            <div class="dashboard-grid">
+              <div class="kpi"><span>需求库</span><strong id="admin-demand-count">-</strong></div>
+              <div class="kpi"><span>匹配记录</span><strong id="admin-match-count">-</strong></div>
+              <div class="kpi"><span>合作意向</span><strong id="admin-intent-count">-</strong></div>
+              <div class="kpi"><span>匹配模式</span><strong id="admin-ai-mode">-</strong></div>
+            </div>
+            <div class="admin-layout">
+            <div class="band">
+              <div class="band-header">
+                <div>
+                  <h2>合作意向后台</h2>
+                  <p>这里显示来访者提交的信息，便于人工审核和撮合。</p>
+                </div>
+                <button class="btn ghost" id="admin-refresh"><i data-lucide="refresh-cw"></i>刷新</button>
+              </div>
+              <div class="band-body">
+                <div class="intent-toolbar">
+                  <select id="intent-status-filter" title="按状态筛选">
+                    <option value="">全部状态</option>
+                  </select>
+                  <input id="intent-keyword" placeholder="搜索姓名、手机号、单位、需求、备注" />
+                  <button class="btn" id="intent-filter"><i data-lucide="search"></i>筛选</button>
+                  <button class="btn ghost" id="intent-clear-filter"><i data-lucide="x"></i>清空</button>
+                  <button class="btn warning" id="intent-export"><i data-lucide="download"></i>导出 Excel</button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>时间</th>
+                        <th>姓名/手机</th>
+                        <th>单位</th>
+                        <th>匹配需求</th>
+                        <th>分数</th>
+                        <th>状态</th>
+                        <th>备注</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="intent-table">
+                      <tr><td colspan="8">暂无合作意向</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="admin-side">
+              <div class="band">
+                <div class="band-header">
+                  <div>
+                    <h2>线索详情</h2>
+                    <p>查看完整提交信息、AI 理由和撮合记录。</p>
+                  </div>
+                </div>
+                <div class="band-body">
+                  <div id="intent-detail" class="intent-detail empty-state">请选择左侧线索查看详情。</div>
+                </div>
+              </div>
+              <div class="band">
+                <div class="band-header">
+                  <div>
+                    <h2>需求库预览</h2>
+                    <p>用于确认已读取 JSTEC 数据，前台仍不展示联系方式。</p>
+                  </div>
+                </div>
+                <div class="band-body">
+                  <div class="search-row">
+                    <input id="demand-keyword" placeholder="搜索需求名称、领域或详情" />
+                    <button class="btn" id="demand-search"><i data-lucide="search"></i>搜索</button>
+                  </div>
+                  <div id="demand-preview" class="demand-preview"></div>
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

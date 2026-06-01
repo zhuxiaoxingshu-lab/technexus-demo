@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: technexus
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python technexus_app/app.py --host 0.0.0.0 --port $PORT --no-browser
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: TECHNEXUS_AI_ENABLED
+        value: "true"
+      - key: TECHNEXUS_AI_BASE_URL
+        value: "https://api.deepseek.com"
+      - key: TECHNEXUS_AI_MODEL
+        value: "deepseek-v4-pro"
+      - key: TECHNEXUS_ADMIN_USERNAME
+        value: "admin"
+      - key: DATABASE_URL
+        sync: false
+      - key: TECHNEXUS_AI_API_KEY
+        sync: false
+      - key: TECHNEXUS_ADMIN_PASSWORD
+        sync: false

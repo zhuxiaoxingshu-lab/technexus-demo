@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "provider": "deepseek",
+  "base_url": "https://api.deepseek.com",
+  "api_key": "请在服务器上填写 DeepSeek API Key，不要提交到代码仓库",
+  "model": "deepseek-v4-pro",
+  "temperature": 0.2,
+  "timeout": 60,
+  "thinking": {
+    "type": "disabled"
+  }
+}

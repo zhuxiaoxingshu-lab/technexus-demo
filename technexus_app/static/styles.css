@@ -534,6 +534,31 @@ textarea:focus {
   gap: 14px;
 }
 
+.result-item.score-excellent,
+.score.score-excellent {
+  border-color: #0f766e;
+}
+
+.result-item.score-high,
+.score.score-high {
+  border-color: #22a06b;
+}
+
+.result-item.score-medium,
+.score.score-medium {
+  border-color: #d6a21d;
+}
+
+.result-item.score-low,
+.score.score-low {
+  border-color: #d97706;
+}
+
+.result-item.score-weak,
+.score.score-weak {
+  border-color: #a8b4af;
+}
+
 .result-top {
   display: flex;
   justify-content: space-between;
@@ -577,6 +602,55 @@ textarea:focus {
   font-weight: 800;
   font-size: 26px;
   text-align: center;
+}
+
+.score.score-excellent {
+  background: #d9f7ec;
+  color: #065f46;
+}
+
+.score.score-high {
+  background: #e8f8ef;
+  color: #16794c;
+}
+
+.score.score-medium {
+  background: #fff4d8;
+  color: #8a5b00;
+}
+
+.score.score-low {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.score.score-weak {
+  background: #eef2f0;
+  color: #52645f;
+}
+
+.score-text {
+  font-weight: 800;
+}
+
+.score-text.score-excellent {
+  color: #065f46;
+}
+
+.score-text.score-high {
+  color: #16794c;
+}
+
+.score-text.score-medium {
+  color: #9a6a00;
+}
+
+.score-text.score-low {
+  color: #9a3412;
+}
+
+.score-text.score-weak {
+  color: #65736f;
 }
 
 .score small {
@@ -708,6 +782,126 @@ textarea:focus {
   margin-top: 3px;
 }
 
+.success-panel {
+  border: 1px solid #bfe6d7;
+  background: #eefaf6;
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.success-panel strong,
+.query-code-box span {
+  display: block;
+  font-size: 20px;
+}
+
+.success-panel p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.query-code-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #bfe6d7;
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.query-code-box span {
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.progress-query-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.progress-result {
+  display: grid;
+  gap: 14px;
+}
+
+.progress-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.progress-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.muted-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.progress-summary {
+  border: 1px solid var(--line);
+  background: #fbfdfc;
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.public-progress,
+.progress-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.progress-step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.progress-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #cbd8d4;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 13px;
+}
+
+.progress-step.done .progress-dot {
+  background: var(--teal);
+  border-color: var(--teal);
+}
+
+.progress-step strong {
+  display: block;
+  font-size: 14px;
+}
+
+.progress-step p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -814,6 +1008,30 @@ th {
   background: #effaf5;
   border-radius: 999px;
   padding: 3px 8px;
+}
+
+.compact-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.progress-edit-row {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 190px minmax(170px, 1fr) minmax(160px, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.progress-edit-row .check-row {
+  margin: 0;
+}
+
+.admin-progress-editor {
+  gap: 12px;
 }
 
 .status-select {
@@ -942,7 +1160,7 @@ th {
   }
 
   .nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .nav button {
@@ -1002,6 +1220,9 @@ th {
   .form-grid,
   .login-form,
   .match-mode-panel,
+  .progress-query-form,
+  .success-panel,
+  .progress-edit-row,
   .metric-grid,
   .score-stack,
   .process,

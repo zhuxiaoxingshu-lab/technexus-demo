@@ -4,6 +4,7 @@ const state = {
   results: [],
   selectedResult: null,
   matchMode: "ai",
+  currentIntent: null,
   adminAuthenticated: false,
   adminUsername: "",
   adminStatuses: [],
@@ -18,6 +19,7 @@ const titleMap = {
   submit: ["成果提交", "字段都不是必填，写得越详细，匹配越精准。"],
   results: ["匹配结果", "展示匹配分数、理由和合作建议，不展示需求方联系方式。"],
   intent: ["合作意向", "确认中介服务协议后，线索进入后台审核。"],
+  progress: ["进度查询", "输入查询码，查看技术撮合对接进度。"],
   admin: ["后台管理", "管理需求库、匹配记录、合作意向和协议确认。"],
 };
 
@@ -193,6 +195,24 @@ function tag(text) {
   return text ? `<span class="tag">${escapeHtml(text)}</span>` : "";
 }
 
+function scoreLevel(score) {
+  const value = Number(score || 0);
+  if (value >= 90) return "excellent";
+  if (value >= 80) return "high";
+  if (value >= 70) return "medium";
+  if (value >= 60) return "low";
+  return "weak";
+}
+
+function scoreLabel(score) {
+  const value = Number(score || 0);
+  if (value >= 90) return "高度匹配";
+  if (value >= 80) return "较高匹配";
+  if (value >= 70) return "可进一步确认";
+  if (value >= 60) return "参考匹配";
+  return "弱匹配";
+}
+
 function renderResults(results) {
   const status = $("#result-status");
   const list = $("#result-list");
@@ -206,8 +226,9 @@ function renderResults(results) {
   list.innerHTML = results
     .map((item, index) => {
       const dims = item.dimensions || {};
+      const level = scoreLevel(item.score);
       return `
-        <article class="result-item">
+        <article class="result-item score-${level}">
           <div class="result-top">
             <div>
               <h2 class="result-title">${escapeHtml(item.name)}</h2>
@@ -218,9 +239,10 @@ function renderResults(results) {
                 ${tag(item.region)}
                 ${tag(item.cooperation_mode)}
                 ${tag(item.scoring_source || "本地规则")}
+                ${tag(scoreLabel(item.score))}
               </div>
             </div>
-            <div class="score">${escapeHtml(item.score)}<small>匹配分</small></div>
+            <div class="score score-${level}">${escapeHtml(item.score)}%<small>${scoreLabel(item.score)}</small></div>
           </div>
           <div class="score-stack">
             ${scoreBar("技术领域", dims["技术领域"])}
@@ -269,7 +291,7 @@ function renderSelectedDemand() {
   box.innerHTML = `
     <strong>${escapeHtml(item.name)}</strong>
     <div class="tags">
-      ${tag(`匹配分 ${item.score}`)}
+      ${tag(`匹配分 ${item.score}%`)}
       ${tag(item.tech_field)}
       ${tag(item.demand_type)}
       ${tag(item.region)}
@@ -291,6 +313,10 @@ async function submitIntent(button) {
     return;
   }
   const form = formDataToObject($("#intent-form"));
+  if (!form.name || !form.phone || !form.company) {
+    toast("请填写姓名、手机号和单位");
+    return;
+  }
   const payload = {
     submission_id: state.submissionId,
     agreement,
@@ -306,11 +332,12 @@ async function submitIntent(button) {
   };
   setButtonLoading(button, true, "正在提交");
   try {
-    await api("/api/intents", {
+    const response = await api("/api/intents", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    toast("已收到合作意向，后台可查看");
+    renderIntentSuccess(response.intent || {});
+    toast("已收到合作意向，请保存查询码");
     $("#intent-form").reset();
     $("#agreement-check").checked = false;
   } catch (error) {
@@ -318,6 +345,77 @@ async function submitIntent(button) {
   } finally {
     setButtonLoading(button, false);
   }
+}
+
+function renderIntentSuccess(intent) {
+  const box = $("#intent-success");
+  const code = intent.query_code || "-";
+  $("#success-query-code").textContent = code;
+  $("#progress-query-code").value = code === "-" ? "" : code;
+  $("#success-promise").textContent = intent.promise || "平台将在 3 个工作日内完成初步审核或联系。";
+  box.hidden = false;
+  box.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function queryProgress(button) {
+  const queryCode = $("#progress-query-code").value.trim();
+  if (!queryCode) {
+    toast("请输入查询码");
+    return;
+  }
+  setButtonLoading(button, true, "查询中");
+  try {
+    const response = await api("/api/progress/query", {
+      method: "POST",
+      body: JSON.stringify({ query_code: queryCode }),
+    });
+    renderProgressResult(response.progress);
+  } catch (error) {
+    $("#progress-result").innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function renderProgressResult(progress) {
+  const demand = progress.demand || {};
+  const list = progress.progress || [];
+  $("#progress-result").innerHTML = `
+    <div class="progress-card">
+      <div class="progress-card-head">
+        <div>
+          <span class="muted-label">查询码</span>
+          <strong>${escapeHtml(progress.query_code || "-")}</strong>
+        </div>
+        <span class="status-pill">${escapeHtml(progress.status || "-")}</span>
+      </div>
+      <div class="progress-summary">
+        ${detailRow("提交时间", progress.created_at || "-")}
+        ${detailRow("最近更新", progress.updated_at || "-")}
+        ${detailRow("匹配需求", demand.name || "-")}
+        ${detailRow("匹配分", demand.score ? `${demand.score}%` : "-")}
+        ${detailRow("平台说明", progress.public_note || progress.promise || "-")}
+      </div>
+      <div class="public-progress">
+        ${list.map(renderPublicProgressStep).join("")}
+      </div>
+    </div>
+  `;
+  refreshIcons();
+}
+
+function renderPublicProgressStep(step) {
+  return `
+    <div class="progress-step ${step.done ? "done" : ""}">
+      <span class="progress-dot">${step.done ? "✓" : ""}</span>
+      <div>
+        <strong>${escapeHtml(step.label || "-")}</strong>
+        <p>${escapeHtml(step.updated_at || (step.done ? "" : "待推进"))}</p>
+        ${step.public_note ? `<p>${escapeHtml(step.public_note)}</p>` : ""}
+      </div>
+    </div>
+  `;
 }
 
 async function loadStats() {
@@ -468,8 +566,8 @@ function renderIntentTable(items) {
           <td>${escapeHtml(item.created_at)}</td>
           <td>${escapeHtml(contact.name || "-")}<br>${escapeHtml(contact.phone || "-")}</td>
           <td>${escapeHtml(contact.company || "-")}</td>
-          <td>${escapeHtml(selected.name || "-")}</td>
-          <td>${escapeHtml(selected.score || "-")}</td>
+          <td>${escapeHtml(selected.name || "-")}<br><span class="muted-label">${escapeHtml(item.query_code || "-")}</span></td>
+          <td><span class="score-text score-${scoreLevel(selected.score)}">${escapeHtml(selected.score || "-")}%</span></td>
           <td>
             <select class="status-select" data-status-select="${escapeHtml(item.intent_id)}">
               ${statusOptions(status)}
@@ -509,14 +607,17 @@ async function loadIntentDetail(intentId) {
 }
 
 function renderIntentDetail(item) {
+  state.currentIntent = item;
   const contact = item.contact || {};
   const selected = item.selected_result || {};
   const logs = item.status_logs || [];
+  const progress = item.progress || [];
   const box = $("#intent-detail");
   box.className = "intent-detail";
   box.innerHTML = `
     <div class="detail-section">
       <h3>来访者</h3>
+      ${detailRow("查询码", item.query_code || "-")}
       ${detailRow("姓名", contact.name || "-")}
       ${detailRow("手机号", contact.phone || "-")}
       ${detailRow("单位", contact.company || "-")}
@@ -549,11 +650,48 @@ function renderIntentDetail(item) {
       <h3>协议和跟进</h3>
       ${detailRow("协议版本", item.agreement_version || "-")}
       ${detailRow("跟进备注", item.followup_note || "-")}
+      ${detailRow("对外说明", item.public_note || "-")}
       <div class="log-list">
         ${logs.length ? logs.map(renderStatusLog).join("") : '<div class="log-item">暂无状态变更记录</div>'}
       </div>
     </div>
+    <div class="detail-section admin-progress-editor">
+      <h3>后台进度表</h3>
+      <div class="form-grid compact-form">
+        <label>
+          当前状态
+          <select id="detail-status">${statusOptions(item.status || "待审核")}</select>
+        </label>
+        <label class="full">
+          内部备注
+          <textarea id="detail-note" placeholder="只在后台显示">${escapeHtml(item.followup_note || "")}</textarea>
+        </label>
+        <label class="full">
+          对外进度说明
+          <textarea id="detail-public-note" placeholder="用户输入查询码后可见">${escapeHtml(item.public_note || "")}</textarea>
+        </label>
+      </div>
+      <div class="progress-editor">
+        ${progress.map(renderAdminProgressStep).join("")}
+      </div>
+      <div class="form-grid compact-form">
+        <label>
+          成交金额
+          <input id="detail-deal-amount" value="${escapeHtml(item.deal_amount || "")}" placeholder="仅后台可见" />
+        </label>
+        <label>
+          成交备注
+          <input id="detail-deal-note" value="${escapeHtml(item.deal_note || "")}" placeholder="仅后台可见" />
+        </label>
+      </div>
+      <button class="btn primary" data-save-intent-detail="${escapeHtml(item.intent_id)}"><i data-lucide="save"></i>保存进度</button>
+    </div>
   `;
+  const saveButton = $("[data-save-intent-detail]", box);
+  if (saveButton) {
+    saveButton.addEventListener("click", () => saveIntentDetail(saveButton));
+  }
+  refreshIcons();
 }
 
 function detailRow(label, value) {
@@ -571,6 +709,39 @@ function renderStatusLog(log) {
   return `<div class="log-item">${escapeHtml(log.created_at || "")}：${escapeHtml(from + (log.new_status || ""))}${escapeHtml(note)}</div>`;
 }
 
+function renderAdminProgressStep(step) {
+  const key = escapeHtml(step.key);
+  return `
+    <div class="progress-edit-row">
+      <label class="check-row">
+        <input type="checkbox" data-progress-done="${key}" ${step.done ? "checked" : ""} />
+        <span>${escapeHtml(step.label || "-")}</span>
+      </label>
+      <input data-progress-public-note="${key}" value="${escapeHtml(step.public_note || "")}" placeholder="对外说明，可留空" />
+      <input data-progress-note="${key}" value="${escapeHtml(step.note || "")}" placeholder="内部备注，可留空" />
+    </div>
+  `;
+}
+
+function collectProgressFromDetail() {
+  const current = state.currentIntent?.progress || [];
+  return current.map((step) => {
+    const key = step.key;
+    const doneInput = $(`[data-progress-done="${CSS.escape(key)}"]`);
+    const publicInput = $(`[data-progress-public-note="${CSS.escape(key)}"]`);
+    const noteInput = $(`[data-progress-note="${CSS.escape(key)}"]`);
+    const wasDone = Boolean(step.done);
+    const done = Boolean(doneInput?.checked);
+    return {
+      ...step,
+      done,
+      updated_at: done ? (wasDone ? step.updated_at || "" : new Date().toLocaleString("zh-CN", { hour12: false })) : "",
+      public_note: publicInput?.value.trim() || "",
+      note: noteInput?.value.trim() || "",
+    };
+  });
+}
+
 function statusOptions(current) {
   const statuses = state.adminStatuses.length
     ? state.adminStatuses
@@ -578,6 +749,33 @@ function statusOptions(current) {
   return statuses
     .map((status) => `<option value="${escapeHtml(status)}" ${status === current ? "selected" : ""}>${escapeHtml(status)}</option>`)
     .join("");
+}
+
+async function saveIntentDetail(button) {
+  if (!state.currentIntent) return;
+  setButtonLoading(button, true, "保存中");
+  try {
+    const response = await api("/api/intents/status", {
+      method: "POST",
+      body: JSON.stringify({
+        intent_id: state.currentIntent.intent_id,
+        status: $("#detail-status").value,
+        note: $("#detail-note").value,
+        public_note: $("#detail-public-note").value,
+        progress: collectProgressFromDetail(),
+        deal_amount: $("#detail-deal-amount").value,
+        deal_note: $("#detail-deal-note").value,
+      }),
+    });
+    renderIntentTable(response.items || []);
+    renderIntentDetail(response.intent);
+    toast("进度已保存");
+  } catch (error) {
+    if (error.status === 401) setAdminView(false, "");
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 async function updateIntentStatus(button) {
@@ -643,6 +841,16 @@ function bindEvents() {
   });
   $("#submit-match").addEventListener("click", () => runMatch(null, $("#submit-match")));
   $("#intent-submit").addEventListener("click", () => submitIntent($("#intent-submit")));
+  $("#progress-query").addEventListener("click", () => queryProgress($("#progress-query")));
+  $("#copy-query-code").addEventListener("click", async () => {
+    const code = $("#success-query-code").textContent.trim();
+    try {
+      await navigator.clipboard.writeText(code);
+      toast("查询码已复制");
+    } catch {
+      toast(`查询码：${code}`);
+    }
+  });
   $("#admin-refresh").addEventListener("click", loadAdmin);
   $("#admin-logout").addEventListener("click", logoutAdmin);
   $("#admin-login-form").addEventListener("submit", (event) => {
@@ -666,6 +874,12 @@ function bindEvents() {
     if (event.key === "Enter") {
       event.preventDefault();
       loadDemandPreview($("#demand-keyword").value.trim());
+    }
+  });
+  $("#progress-query-code").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      queryProgress($("#progress-query"));
     }
   });
 }

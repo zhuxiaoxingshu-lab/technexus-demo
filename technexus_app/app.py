@@ -36,6 +36,17 @@ DATABASE_URL = os.getenv("TECHNEXUS_DATABASE_URL") or os.getenv("DATABASE_URL") 
 SESSION_COOKIE = "technexus_admin_session"
 SESSION_SECONDS = 8 * 60 * 60
 AGREEMENT_VERSION = "TechNexus-2026-06-01-v2"
+PUBLIC_RESPONSE_PROMISE = "平台将在 3 个工作日内完成初步审核或联系。"
+PROGRESS_STEPS = [
+    ("submitted", "已提交合作意向", "已提交合作意向"),
+    ("reviewing", "平台审核中", "平台审核中"),
+    ("called_result_owner", "打电话核实成果", "已电话核实成果"),
+    ("contacted_demander", "联系需求方", "已联系需求方"),
+    ("wechat_contact", "发微信", "已微信沟通"),
+    ("meeting_scheduled", "约线上会议", "已约线上会议"),
+    ("agreement_sent", "发送协议", "已发送中介协议"),
+    ("deal_recorded", "记录成交金额", "已记录合作结果"),
+]
 INTENT_STATUSES = [
     "待审核",
     "已联系成果方",
@@ -799,7 +810,142 @@ def init_database() -> None:
                     db_execute(conn, statement)
         else:
             conn.executescript(schema_sql)
+    migrate_database_schema()
     migrate_jsonl_to_database()
+
+
+def column_exists(conn: object, table: str, column: str) -> bool:
+    if using_postgres():
+        row = db_execute(
+            conn,
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_name = ? AND column_name = ?
+            LIMIT 1
+            """,
+            (table, column),
+        ).fetchone()
+        return row is not None
+    rows = db_execute(conn, f"PRAGMA table_info({table})").fetchall()
+    return any(dict(row).get("name") == column for row in rows)
+
+
+def add_column_if_missing(conn: object, table: str, column: str, definition: str) -> None:
+    if column_exists(conn, table, column):
+        return
+    db_execute(conn, f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def migrate_database_schema() -> None:
+    with db_connect() as conn:
+        add_column_if_missing(conn, "intents", "query_code", "TEXT")
+        add_column_if_missing(conn, "intents", "public_note", "TEXT DEFAULT ''")
+        add_column_if_missing(conn, "intents", "progress_json", "TEXT DEFAULT ''")
+        add_column_if_missing(conn, "intents", "deal_amount", "TEXT DEFAULT ''")
+        add_column_if_missing(conn, "intents", "deal_note", "TEXT DEFAULT ''")
+
+        rows = db_execute(
+            conn,
+            """
+            SELECT intent_id, created_at, query_code, progress_json, public_note
+            FROM intents
+            """,
+        ).fetchall()
+        for row in rows:
+            item = dict(row)
+            updates: list[str] = []
+            params: list[str] = []
+            query_code = clean_text(item.get("query_code"))
+            if not query_code:
+                query_code = generate_unique_query_code(conn)
+                updates.append("query_code = ?")
+                params.append(query_code)
+            if not clean_text(item.get("progress_json")):
+                updates.append("progress_json = ?")
+                params.append(json_dumps(default_progress(item.get("created_at"))))
+            if not clean_text(item.get("public_note")):
+                updates.append("public_note = ?")
+                params.append(f"已收到合作意向，{PUBLIC_RESPONSE_PROMISE}")
+            if updates:
+                params.append(clean_text(item.get("intent_id")))
+                db_execute(conn, f"UPDATE intents SET {', '.join(updates)} WHERE intent_id = ?", params)
+
+
+def generate_query_code() -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "TN-" + "".join(secrets.choice(alphabet) for _ in range(8))
+
+
+def generate_unique_query_code(conn: object | None = None) -> str:
+    own_conn = conn is None
+    if own_conn:
+        conn = db_connect()
+    try:
+        for _ in range(30):
+            code = generate_query_code()
+            row = db_execute(conn, "SELECT 1 FROM intents WHERE query_code = ?", (code,)).fetchone()
+            if row is None:
+                return code
+    finally:
+        if own_conn and conn is not None:
+            conn.close()
+    return "TN-" + uuid.uuid4().hex[:8].upper()
+
+
+def default_progress(created_at: object = "") -> list[dict]:
+    timestamp = clean_text(created_at) or now_iso()
+    progress: list[dict] = []
+    for key, label, public_label in PROGRESS_STEPS:
+        done = key == "submitted"
+        progress.append(
+            {
+                "key": key,
+                "label": label,
+                "public_label": public_label,
+                "done": done,
+                "updated_at": timestamp if done else "",
+                "note": "",
+                "public_note": "",
+            }
+        )
+    return progress
+
+
+def normalize_progress(value: object, created_at: object = "") -> list[dict]:
+    raw_items: list[dict] = []
+    if isinstance(value, list):
+        raw_items = [item for item in value if isinstance(item, dict)]
+    elif value:
+        try:
+            parsed = json.loads(str(value))
+            if isinstance(parsed, list):
+                raw_items = [item for item in parsed if isinstance(item, dict)]
+        except json.JSONDecodeError:
+            raw_items = []
+
+    by_key = {clean_text(item.get("key")): item for item in raw_items}
+    normalized = default_progress(created_at)
+    for item in normalized:
+        existing = by_key.get(item["key"]) or {}
+        item["done"] = bool(existing.get("done", item["done"]))
+        item["updated_at"] = clean_text(existing.get("updated_at")) or item["updated_at"]
+        item["note"] = clean_text(existing.get("note"))
+        item["public_note"] = clean_text(existing.get("public_note"))
+    return normalized
+
+
+def public_progress(progress: list[dict]) -> list[dict]:
+    return [
+        {
+            "key": clean_text(item.get("key")),
+            "label": clean_text(item.get("public_label") or item.get("label")),
+            "done": bool(item.get("done")),
+            "updated_at": clean_text(item.get("updated_at")),
+            "public_note": clean_text(item.get("public_note")),
+        }
+        for item in progress
+    ]
 
 
 def migrate_jsonl_to_database() -> None:
@@ -848,8 +994,9 @@ def migrate_jsonl_to_database() -> None:
                 """
                 INSERT INTO intents
                     (intent_id, created_at, updated_at, status, agreement_version, submission_id,
-                     contact_json, message, attachment_note, selected_result_json, followup_note)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     contact_json, message, attachment_note, selected_result_json, followup_note,
+                     query_code, public_note, progress_json, deal_amount, deal_note)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (intent_id) DO NOTHING
                 """,
                 (
@@ -864,6 +1011,11 @@ def migrate_jsonl_to_database() -> None:
                     clean_text(item.get("attachment_note")),
                     json_dumps(item.get("selected_result") or {}),
                     clean_text(item.get("followup_note")),
+                    clean_text(item.get("query_code")) or generate_unique_query_code(conn),
+                    clean_text(item.get("public_note")) or f"已收到合作意向，{PUBLIC_RESPONSE_PROMISE}",
+                    json_dumps(normalize_progress(item.get("progress"), item.get("created_at"))),
+                    clean_text(item.get("deal_amount")),
+                    clean_text(item.get("deal_note")),
                 ),
             )
 
@@ -923,13 +1075,16 @@ def save_match(record: dict) -> None:
 def save_intent(intent: dict) -> None:
     timestamp = clean_text(intent.get("created_at")) or now_iso()
     with db_connect() as conn:
+        query_code = clean_text(intent.get("query_code")) or generate_unique_query_code(conn)
+        progress = normalize_progress(intent.get("progress") or intent.get("progress_json"), timestamp)
         db_execute(
             conn,
             """
             INSERT INTO intents
                 (intent_id, created_at, updated_at, status, agreement_version, submission_id,
-                 contact_json, message, attachment_note, selected_result_json, followup_note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 contact_json, message, attachment_note, selected_result_json, followup_note,
+                 query_code, public_note, progress_json, deal_amount, deal_note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (intent_id) DO UPDATE SET
                 created_at = excluded.created_at,
                 updated_at = excluded.updated_at,
@@ -940,7 +1095,12 @@ def save_intent(intent: dict) -> None:
                 message = excluded.message,
                 attachment_note = excluded.attachment_note,
                 selected_result_json = excluded.selected_result_json,
-                followup_note = excluded.followup_note
+                followup_note = excluded.followup_note,
+                query_code = excluded.query_code,
+                public_note = excluded.public_note,
+                progress_json = excluded.progress_json,
+                deal_amount = excluded.deal_amount,
+                deal_note = excluded.deal_note
             """,
             (
                 clean_text(intent.get("intent_id")),
@@ -954,6 +1114,11 @@ def save_intent(intent: dict) -> None:
                 clean_text(intent.get("attachment_note")),
                 json_dumps(intent.get("selected_result") or {}),
                 clean_text(intent.get("followup_note")),
+                query_code,
+                clean_text(intent.get("public_note")) or f"已收到合作意向，{PUBLIC_RESPONSE_PROMISE}",
+                json_dumps(progress),
+                clean_text(intent.get("deal_amount")),
+                clean_text(intent.get("deal_note")),
             ),
         )
 
@@ -991,6 +1156,7 @@ def list_intents(limit: int = 200, status: str = "", keyword: str = "") -> list[
         item = dict(row)
         item["contact"] = decode_json_field(item.pop("contact_json", ""), {})
         item["selected_result"] = decode_json_field(item.pop("selected_result_json", ""), {})
+        item["progress"] = normalize_progress(item.pop("progress_json", ""), item.get("created_at"))
         if keyword and keyword not in intent_search_text(item):
             continue
         items.append(item)
@@ -1003,6 +1169,7 @@ def row_to_intent(row: object) -> dict:
     item = dict(row)
     item["contact"] = decode_json_field(item.pop("contact_json", ""), {})
     item["selected_result"] = decode_json_field(item.pop("selected_result_json", ""), {})
+    item["progress"] = normalize_progress(item.pop("progress_json", ""), item.get("created_at"))
     return item
 
 
@@ -1033,9 +1200,13 @@ def intent_search_text(item: dict) -> str:
     values = [
         item.get("created_at", ""),
         item.get("status", ""),
+        item.get("query_code", ""),
         item.get("message", ""),
         item.get("attachment_note", ""),
         item.get("followup_note", ""),
+        item.get("public_note", ""),
+        item.get("deal_amount", ""),
+        item.get("deal_note", ""),
         contact.get("name", ""),
         contact.get("phone", ""),
         contact.get("company", ""),
@@ -1062,6 +1233,7 @@ def export_intents_xlsx(items: list[dict]) -> bytes:
     headers = [
         "创建时间",
         "当前状态",
+        "查询码",
         "姓名",
         "手机号",
         "单位",
@@ -1076,6 +1248,9 @@ def export_intents_xlsx(items: list[dict]) -> bytes:
         "用户留言",
         "补充说明/相关链接",
         "跟进备注",
+        "对外说明",
+        "成交金额",
+        "成交备注",
         "合作意向ID",
         "需求ID",
     ]
@@ -1097,6 +1272,7 @@ def export_intents_xlsx(items: list[dict]) -> bytes:
             [
                 item.get("created_at", ""),
                 item.get("status", ""),
+                item.get("query_code", ""),
                 contact.get("name", ""),
                 contact.get("phone", ""),
                 contact.get("company", ""),
@@ -1111,6 +1287,9 @@ def export_intents_xlsx(items: list[dict]) -> bytes:
                 item.get("message", ""),
                 item.get("attachment_note", ""),
                 item.get("followup_note", ""),
+                item.get("public_note", ""),
+                item.get("deal_amount", ""),
+                item.get("deal_note", ""),
                 item.get("intent_id", ""),
                 selected.get("demand_id", ""),
             ]
@@ -1133,15 +1312,18 @@ def export_intents_xlsx(items: list[dict]) -> bytes:
         "N": 28,
         "O": 30,
         "P": 30,
-        "Q": 34,
-        "R": 24,
+        "Q": 30,
+        "R": 20,
+        "S": 30,
+        "T": 34,
+        "U": 24,
     }
     for column, width in widths.items():
         sheet.column_dimensions[column].width = width
     for row in sheet.iter_rows(min_row=2):
         for cell in row:
             cell.alignment = Alignment(vertical="top", wrap_text=True)
-        for index in (4, 17, 18):
+        for index in (3, 5, 20, 21):
             row[index - 1].number_format = "@"
     sheet.freeze_panes = "A2"
     sheet.auto_filter.ref = sheet.dimensions
@@ -1150,7 +1332,17 @@ def export_intents_xlsx(items: list[dict]) -> bytes:
     return output.getvalue()
 
 
-def update_intent_status(intent_id: str, status: str, note: str, operator: str) -> dict:
+def update_intent_status(
+    intent_id: str,
+    status: str,
+    note: str,
+    operator: str,
+    *,
+    public_note: str = "",
+    progress: list[dict] | None = None,
+    deal_amount: str | None = None,
+    deal_note: str | None = None,
+) -> dict:
     intent_id = clean_text(intent_id)
     status = clean_text(status)
     if status not in INTENT_STATUSES:
@@ -1161,14 +1353,29 @@ def update_intent_status(intent_id: str, status: str, note: str, operator: str) 
             raise KeyError("未找到合作意向")
         old_status = clean_text(row["status"])
         timestamp = now_iso()
+        current = dict(row)
+        progress_value = normalize_progress(progress if progress is not None else current.get("progress_json"), current.get("created_at"))
+        public_note_value = clean_text(public_note) or clean_text(current.get("public_note"))
+        deal_amount_value = clean_text(deal_amount) if deal_amount is not None else clean_text(current.get("deal_amount"))
+        deal_note_value = clean_text(deal_note) if deal_note is not None else clean_text(current.get("deal_note"))
         db_execute(
             conn,
             """
             UPDATE intents
-            SET status = ?, followup_note = ?, updated_at = ?
+            SET status = ?, followup_note = ?, public_note = ?, progress_json = ?,
+                deal_amount = ?, deal_note = ?, updated_at = ?
             WHERE intent_id = ?
             """,
-            (status, clean_text(note), timestamp, intent_id),
+            (
+                status,
+                clean_text(note),
+                public_note_value,
+                json_dumps(progress_value),
+                deal_amount_value,
+                deal_note_value,
+                timestamp,
+                intent_id,
+            ),
         )
         db_execute(
             conn,
@@ -1181,6 +1388,36 @@ def update_intent_status(intent_id: str, status: str, note: str, operator: str) 
         )
     updated = [item for item in list_intents(limit=1_000_000) if item.get("intent_id") == intent_id]
     return updated[0] if updated else {"intent_id": intent_id, "status": status}
+
+
+def get_progress_by_query_code(query_code: str) -> dict:
+    query_code = clean_text(query_code).upper()
+    if not query_code:
+        raise KeyError("请输入查询码")
+    with db_connect() as conn:
+        row = db_execute(conn, "SELECT * FROM intents WHERE UPPER(query_code) = ?", (query_code,)).fetchone()
+        if row is None:
+            raise KeyError("未找到该查询码对应的合作意向")
+    item = row_to_intent(row)
+    selected = item.get("selected_result") or {}
+    return {
+        "query_code": item.get("query_code", ""),
+        "created_at": item.get("created_at", ""),
+        "updated_at": item.get("updated_at", ""),
+        "status": item.get("status", ""),
+        "public_note": item.get("public_note", "") or f"已收到合作意向，{PUBLIC_RESPONSE_PROMISE}",
+        "promise": PUBLIC_RESPONSE_PROMISE,
+        "demand": {
+            "name": selected.get("name", ""),
+            "score": selected.get("score", ""),
+            "tech_field": selected.get("tech_field", ""),
+            "demand_type": selected.get("demand_type", ""),
+            "region": selected.get("region", ""),
+            "reason": clip(selected.get("reason", ""), 220),
+            "scoring_source": selected.get("scoring_source", ""),
+        },
+        "progress": public_progress(item.get("progress") or []),
+    }
 
 
 def hash_password(password: str, salt: str | None = None, iterations: int = 220000) -> str:
@@ -1411,7 +1648,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 refined_results, ai_meta = use_quick_match(local_results)
             else:
                 refined_results, ai_meta = refine_matches_with_ai(self.ai_config, submission, local_results)
-            results = refined_results[:8]
+            results = refined_results[:5]
             save_submission(record)
             save_match(
                 {
@@ -1443,13 +1680,14 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 self.send_error_json(HTTPStatus.BAD_REQUEST, "请先确认中介服务协议")
                 return
             contact = payload.get("contact") or {}
-            if not clean_text(contact.get("name")) or not clean_text(contact.get("phone")):
-                self.send_error_json(HTTPStatus.BAD_REQUEST, "请填写姓名和手机号，便于后续人工撮合")
+            if not clean_text(contact.get("name")) or not clean_text(contact.get("phone")) or not clean_text(contact.get("company")):
+                self.send_error_json(HTTPStatus.BAD_REQUEST, "请填写姓名、手机号和单位，便于后续人工撮合")
                 return
             selected = payload.get("selected_result") or {}
+            timestamp = now_iso()
             intent = {
                 "intent_id": uuid.uuid4().hex,
-                "created_at": now_iso(),
+                "created_at": timestamp,
                 "status": "待审核",
                 "agreement_version": AGREEMENT_VERSION,
                 "submission_id": clean_text(payload.get("submission_id", "")),
@@ -1457,11 +1695,34 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 "message": clean_text(payload.get("message", "")),
                 "attachment_note": clean_text(payload.get("extra_note") or payload.get("attachment_note", "")),
                 "selected_result": selected,
-                "updated_at": now_iso(),
+                "updated_at": timestamp,
                 "followup_note": "",
+                "query_code": generate_unique_query_code(),
+                "public_note": f"已收到合作意向，{PUBLIC_RESPONSE_PROMISE}",
+                "progress": default_progress(timestamp),
+                "deal_amount": "",
+                "deal_note": "",
             }
             save_intent(intent)
-            self.send_json({"ok": True, "intent": intent})
+            self.send_json(
+                {
+                    "ok": True,
+                    "intent": {
+                        **intent,
+                        "promise": PUBLIC_RESPONSE_PROMISE,
+                    },
+                }
+            )
+            return
+
+        if parsed.path == "/api/progress/query":
+            payload = self.read_json()
+            try:
+                progress = get_progress_by_query_code(clean_text(payload.get("query_code")))
+            except KeyError as exc:
+                self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+                return
+            self.send_json({"ok": True, "progress": progress})
             return
 
         if parsed.path == "/api/intents/status":
@@ -1475,6 +1736,10 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                     clean_text(payload.get("status")),
                     clean_text(payload.get("note")),
                     operator,
+                    public_note=clean_text(payload.get("public_note")),
+                    progress=payload.get("progress") if isinstance(payload.get("progress"), list) else None,
+                    deal_amount=clean_text(payload.get("deal_amount")) if "deal_amount" in payload else None,
+                    deal_note=clean_text(payload.get("deal_note")) if "deal_note" in payload else None,
                 )
             except KeyError as exc:
                 self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))

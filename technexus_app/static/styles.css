@@ -81,6 +81,19 @@ select {
   font-weight: 800;
 }
 
+.brand-mark.image-mark {
+  background: #ffffff;
+  overflow: hidden;
+  padding: 2px;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 .brand strong,
 .brand span {
   display: block;
@@ -473,6 +486,67 @@ textarea:focus {
   color: #bed4ce;
   line-height: 1.7;
   margin: 0;
+}
+
+.official-account-card {
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  background: #ffffff;
+  color: var(--ink);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 86px;
+  gap: 12px;
+  align-items: center;
+  box-shadow: 0 6px 18px rgba(20, 34, 31, 0.06);
+}
+
+.fee-card .official-account-card {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+}
+
+.official-account-card strong,
+.official-account-card span {
+  display: block;
+}
+
+.official-account-card strong {
+  font-size: 15px;
+}
+
+.official-account-card span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.official-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 7px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.official-qr {
+  width: 86px;
+  height: 86px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.success-contact {
+  grid-column: 1 / -1;
+}
+
+.progress-contact {
+  margin-top: 16px;
+  max-width: 620px;
 }
 
 .process {
@@ -1222,6 +1296,7 @@ th {
   .match-mode-panel,
   .progress-query-form,
   .success-panel,
+  .official-account-card,
   .progress-edit-row,
   .metric-grid,
   .score-stack,
@@ -1249,6 +1324,11 @@ th {
     height: 72px;
     min-width: 72px;
     font-size: 22px;
+  }
+
+  .official-qr {
+    width: 132px;
+    height: 132px;
   }
 }
 

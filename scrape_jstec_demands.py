@@ -31,6 +31,7 @@ DETAIL_API = f"{BASE_URL}/portal/crowdsourceDemand/getDemandDetail"
 LOGIN_API = f"{BASE_URL}/portal/login"
 CAPTCHA_API = f"{BASE_URL}/portal/getCaptchaCode"
 AREA_JS_URL = f"{BASE_URL}/_nuxt/e760a04.js"
+DEMAND_LIST_PAGE_URL = f"{BASE_URL}/crowdsourcing/demandList"
 DETAIL_PAGE_URL = f"{BASE_URL}/crowdsourcing/demandDetail?id={{id}}"
 
 
@@ -46,6 +47,57 @@ LIST_DEFAULT_QUERY = {
     "publishYear": "",
     "company": "",
     "area": "",
+}
+
+
+JIANGSU_AREA_FALLBACK = {
+    "320000": "江苏省",
+    "320100": "南京市",
+    "320102": "玄武区",
+    "320104": "秦淮区",
+    "320105": "建邺区",
+    "320106": "鼓楼区",
+    "320111": "浦口区",
+    "320113": "栖霞区",
+    "320114": "雨花台区",
+    "320115": "江宁区",
+    "320116": "六合区",
+    "320117": "溧水区",
+    "320118": "高淳区",
+    "320200": "无锡市",
+    "320205": "锡山区",
+    "320206": "惠山区",
+    "320211": "滨湖区",
+    "320213": "梁溪区",
+    "320214": "新吴区",
+    "320281": "江阴市",
+    "320282": "宜兴市",
+    "320300": "徐州市",
+    "320400": "常州市",
+    "320402": "天宁区",
+    "320404": "钟楼区",
+    "320411": "新北区",
+    "320412": "武进区",
+    "320413": "金坛区",
+    "320481": "溧阳市",
+    "320500": "苏州市",
+    "320505": "虎丘区",
+    "320506": "吴中区",
+    "320507": "相城区",
+    "320508": "姑苏区",
+    "320509": "吴江区",
+    "320581": "常熟市",
+    "320582": "张家港市",
+    "320583": "昆山市",
+    "320585": "太仓市",
+    "320600": "南通市",
+    "320700": "连云港市",
+    "320800": "淮安市",
+    "320900": "盐城市",
+    "321000": "扬州市",
+    "321100": "镇江市",
+    "321200": "泰州市",
+    "321300": "宿迁市",
 }
 
 
@@ -231,21 +283,42 @@ def login_if_requested(session: requests.Session, args: argparse.Namespace) -> N
 
 def fetch_area_code_map(session: requests.Session, timeout: float) -> Dict[str, str]:
     """Extract area code labels from the site's own bundled JS."""
+    area_map: Dict[str, str] = dict(JIANGSU_AREA_FALLBACK)
+    texts: list[str] = []
+
     try:
         response = session.get(AREA_JS_URL, timeout=timeout)
         response.raise_for_status()
-    except requests.RequestException as exc:
-        print(f"地区代码表读取失败，将保留原始编码：{exc}", file=sys.stderr)
-        return {}
+        texts.append(response.text)
+    except requests.RequestException:
+        pass
 
-    area_map: Dict[str, str] = {}
-    for raw_code, name in re.findall(r"([0-9]+(?:e[0-9]+)?):\"([^\"]+)\"", response.text):
-        try:
-            code = str(int(float(raw_code)))
-        except ValueError:
-            continue
-        if len(code) == 6:
+    try:
+        page = session.get(DEMAND_LIST_PAGE_URL, timeout=timeout)
+        page.raise_for_status()
+        asset_paths = re.findall(r'(?:src|href)="([^"]+/_nuxt/[^"]+\.js)"', page.text)
+        for asset_path in asset_paths:
+            asset_url = asset_path if asset_path.startswith("http") else f"{BASE_URL}{asset_path}"
+            try:
+                asset = session.get(asset_url, timeout=timeout)
+                asset.raise_for_status()
+            except requests.RequestException:
+                continue
+            texts.append(asset.text)
+    except requests.RequestException as exc:
+        print(f"地区代码表页面读取失败，将使用内置江苏地区表：{exc}", file=sys.stderr)
+
+    for text in texts:
+        for raw_code, name in re.findall(r"([0-9]+(?:e[0-9]+)?):\"([^\"]+)\"", text):
+            try:
+                code = str(int(float(raw_code)))
+            except ValueError:
+                continue
+            if len(code) == 6:
+                area_map[code] = name
+        for name, code in re.findall(r'\{name:"([^"]+)",data:"([0-9]{6})"\}', text):
             area_map[code] = name
+
     return area_map
 
 

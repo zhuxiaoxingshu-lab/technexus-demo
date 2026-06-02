@@ -1,0 +1,33 @@
+name: Sync JSTEC Demands
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "10 1 * * *"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Check database secret
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "请先在 GitHub 仓库 Settings > Secrets and variables > Actions 中添加 DATABASE_URL。"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sync latest JSTEC demands
+        run: python sync_jstec_demands.py --max-pages 12 --stop-after-known 30

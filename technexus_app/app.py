@@ -58,6 +58,20 @@ INTENT_STATUSES = [
 ]
 
 CONTACT_FIELDS = {"联系方式", "详情页链接"}
+DEMAND_FIELDS = [
+    "需求名称",
+    "需求编号",
+    "合作方式",
+    "意向投入",
+    "联系方式",
+    "发布者",
+    "需求详情",
+    "技术领域",
+    "需求类型",
+    "所在地区",
+    "需求ID",
+    "详情页链接",
+]
 STOPWORDS = {
     "技术",
     "需求",
@@ -277,34 +291,49 @@ class DemandStore:
         self.path = path
         self.demands: list[dict] = []
         self.loaded_at = ""
+        self.source_version = ""
+        self._last_refresh_check = 0.0
 
     def load(self) -> None:
-        if not self.path.exists():
-            raise FileNotFoundError(f"未找到需求库文件：{self.path}")
-        demands: list[dict] = []
-        with self.path.open("r", encoding="utf-8") as file:
-            for line in file:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    item = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                cleaned = {clean_text(k): clean_text(v) for k, v in item.items()}
-                if not cleaned.get("需求ID") and not cleaned.get("需求名称"):
-                    continue
-                search_text = " ".join(
-                    cleaned.get(field, "")
-                    for field in ("需求名称", "技术领域", "需求类型", "所在地区", "需求详情", "合作方式")
-                )
-                cleaned["_search_text"] = search_text
-                cleaned["_tokens"] = tokenize(search_text)
-                demands.append(cleaned)
-        self.demands = demands
+        database_version = database_demands_version()
+        database_demands = load_demands_from_database()
+        if database_demands:
+            self.demands = database_demands
+            self.loaded_at = now_iso()
+            self.source_version = database_version
+            return
+
+        self.demands = load_demands_from_file(self.path)
         self.loaded_at = now_iso()
+        try:
+            stat = self.path.stat()
+            self.source_version = f"file:{stat.st_mtime_ns}:{stat.st_size}"
+        except OSError:
+            self.source_version = f"file:{self.loaded_at}"
+
+    def reload(self) -> None:
+        self.load()
+
+    def refresh_if_changed(self, *, min_interval: float = 60.0) -> None:
+        now = time.time()
+        if now - self._last_refresh_check < min_interval:
+            return
+        self._last_refresh_check = now
+        database_version = database_demands_version()
+        if database_version and database_version != self.source_version:
+            self.load()
+            return
+        if not database_version and self.path.exists():
+            try:
+                stat = self.path.stat()
+                file_version = f"file:{stat.st_mtime_ns}:{stat.st_size}"
+            except OSError:
+                return
+            if file_version != self.source_version:
+                self.load()
 
     def stats(self) -> dict:
+        self.refresh_if_changed()
         return {"demand_count": len(self.demands), "loaded_at": self.loaded_at}
 
     def by_id(self, demand_id: str) -> dict | None:
@@ -315,6 +344,7 @@ class DemandStore:
         return None
 
     def search(self, keyword: str = "", limit: int = 50) -> list[dict]:
+        self.refresh_if_changed()
         keyword = clean_text(keyword)
         if not keyword:
             rows = self.demands[:limit]
@@ -330,6 +360,39 @@ class DemandStore:
             scored.sort(key=lambda item: item[0], reverse=True)
             rows = [demand for _, demand in scored[:limit]]
         return [sanitize_demand(row, include_detail=True) for row in rows]
+
+
+def prepare_demand_row(item: dict) -> dict:
+    cleaned = {clean_text(k): clean_text(v) for k, v in item.items()}
+    if not cleaned.get("需求ID") and not cleaned.get("需求名称"):
+        return {}
+    search_text = " ".join(
+        cleaned.get(field, "")
+        for field in ("需求名称", "技术领域", "需求类型", "所在地区", "需求详情", "合作方式")
+    )
+    cleaned["_search_text"] = search_text
+    cleaned["_tokens"] = tokenize(search_text)
+    return cleaned
+
+
+def load_demands_from_file(path: Path) -> list[dict]:
+    if not path.exists():
+        raise FileNotFoundError(f"未找到需求库文件：{path}")
+    demands: list[dict] = []
+    with path.open("r", encoding="utf-8") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            cleaned = prepare_demand_row(item)
+            if not cleaned:
+                continue
+            demands.append(cleaned)
+    return demands
 
 
 def sanitize_demand(demand: dict, *, include_detail: bool = False) -> dict:
@@ -439,6 +502,7 @@ def build_suggestion(demand: dict, keywords: list[str]) -> str:
 
 
 def match_demands(store: DemandStore, submission: dict, limit: int = 8) -> list[dict]:
+    store.refresh_if_changed()
     user_text = build_user_text(
         submission,
         (
@@ -760,6 +824,150 @@ def db_connect() -> object:
     return conn
 
 
+def demand_public_payload(row: dict) -> dict:
+    return {field: clean_text(row.get(field)) for field in DEMAND_FIELDS}
+
+
+def database_demands_version() -> str:
+    try:
+        with db_connect() as conn:
+            row = db_execute(conn, "SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at FROM demands").fetchone()
+    except Exception:
+        return ""
+    if not row:
+        return ""
+    item = dict(row)
+    count = int(item.get("count") or 0)
+    if count <= 0:
+        return ""
+    return f"db:{count}:{clean_text(item.get('updated_at'))}"
+
+
+def load_demands_from_database() -> list[dict]:
+    try:
+        with db_connect() as conn:
+            rows = db_execute(
+                conn,
+                """
+                SELECT demand_json
+                FROM demands
+                ORDER BY updated_at DESC, first_seen_at DESC
+                """,
+            ).fetchall()
+    except Exception:
+        return []
+
+    demands: list[dict] = []
+    for row in rows:
+        item = dict(row)
+        try:
+            payload = json.loads(clean_text(item.get("demand_json")))
+        except json.JSONDecodeError:
+            continue
+        cleaned = prepare_demand_row(payload if isinstance(payload, dict) else {})
+        if cleaned:
+            demands.append(cleaned)
+    return demands
+
+
+def existing_demand_ids() -> set[str]:
+    try:
+        with db_connect() as conn:
+            rows = db_execute(conn, "SELECT demand_id FROM demands").fetchall()
+            return {clean_text(dict(row).get("demand_id")) for row in rows if clean_text(dict(row).get("demand_id"))}
+    except Exception:
+        return set()
+
+
+def save_demand_rows_to_database(rows: list[dict], *, update_existing: bool = True) -> dict:
+    if not rows:
+        return {"inserted": 0, "updated": 0, "skipped": 0}
+
+    timestamp = now_iso()
+    inserted = 0
+    updated = 0
+    skipped = 0
+    with db_connect() as conn:
+        for raw in rows:
+            row = demand_public_payload(raw)
+            demand_id = clean_text(row.get("需求ID"))
+            name = clean_text(row.get("需求名称"))
+            if not demand_id or not name:
+                skipped += 1
+                continue
+            if not update_existing:
+                cursor = db_execute(
+                    conn,
+                    """
+                    INSERT INTO demands (
+                        demand_id, demand_no, name, demand_json, source, source_url, first_seen_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (demand_id) DO NOTHING
+                    """,
+                    (
+                        demand_id,
+                        row.get("需求编号", ""),
+                        name,
+                        json_dumps(row),
+                        "jstec",
+                        row.get("详情页链接", ""),
+                        timestamp,
+                        timestamp,
+                    ),
+                )
+                if getattr(cursor, "rowcount", 0):
+                    inserted += 1
+                else:
+                    skipped += 1
+                continue
+
+            existing = db_execute(conn, "SELECT 1 FROM demands WHERE demand_id = ?", (demand_id,)).fetchone()
+            db_execute(
+                conn,
+                """
+                INSERT INTO demands (
+                    demand_id, demand_no, name, demand_json, source, source_url, first_seen_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (demand_id) DO UPDATE SET
+                    demand_no = excluded.demand_no,
+                    name = excluded.name,
+                    demand_json = excluded.demand_json,
+                    source = excluded.source,
+                    source_url = excluded.source_url,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    demand_id,
+                    row.get("需求编号", ""),
+                    name,
+                    json_dumps(row),
+                    "jstec",
+                    row.get("详情页链接", ""),
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            if existing:
+                updated += 1
+            else:
+                inserted += 1
+    return {"inserted": inserted, "updated": updated, "skipped": skipped}
+
+
+def migrate_demands_file_to_database() -> None:
+    if not DEMANDS_FILE.exists():
+        return
+    try:
+        if existing_demand_ids():
+            return
+        rows = [demand_public_payload(row) for row in load_demands_from_file(DEMANDS_FILE)]
+        save_demand_rows_to_database(rows, update_existing=False)
+    except Exception as exc:
+        print(f"需求库文件迁移到数据库失败，仍将使用本地文件：{exc}")
+
+
 def init_database() -> None:
     ensure_data_dir()
     schema_sql = """
@@ -801,6 +1009,19 @@ def init_database() -> None:
         operator TEXT,
         created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS demands (
+        demand_id TEXT PRIMARY KEY,
+        demand_no TEXT,
+        name TEXT NOT NULL,
+        demand_json TEXT NOT NULL,
+        source TEXT DEFAULT 'jstec',
+        source_url TEXT,
+        first_seen_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_demands_updated_at ON demands (updated_at);
     """
     with db_connect() as conn:
         if using_postgres():
@@ -812,6 +1033,7 @@ def init_database() -> None:
             conn.executescript(schema_sql)
     migrate_database_schema()
     migrate_jsonl_to_database()
+    migrate_demands_file_to_database()
 
 
 def column_exists(conn: object, table: str, column: str) -> bool:

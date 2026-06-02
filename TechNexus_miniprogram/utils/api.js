@@ -21,7 +21,12 @@ function request(path, options = {}) {
         reject(new Error(data.message || `请求失败：${res.statusCode}`));
       },
       fail(error) {
-        reject(new Error(error.errMsg || "网络请求失败"));
+        const message = error.errMsg || "网络请求失败";
+        if (message.includes("url not in domain list")) {
+          reject(new Error("服务器域名未加入小程序 request 合法域名，请先在微信公众平台配置后台域名。"));
+          return;
+        }
+        reject(new Error(message));
       }
     });
   });

@@ -1,0 +1,74 @@
+<view class="page">
+  <view class="card">
+    <text class="section-title">合作意向提交</text>
+    <view class="muted">确认中介服务协议后，线索进入后台待审核。平台将在 3 个工作日内完成初步审核或联系。</view>
+  </view>
+
+  <view class="card">
+    <text class="section-title">已选需求</text>
+    <view wx:if="{{selected}}" class="selected-demand">
+      <view class="result-name">{{selected.name}}</view>
+      <view class="tags">
+        <text class="tag">匹配 {{selected.score}}%</text>
+        <text wx:for="{{selected.tags}}" wx:for-item="tag" wx:key="*this" class="tag">{{tag}}</text>
+      </view>
+      <view class="muted">{{selected.reason}}</view>
+    </view>
+    <view wx:else class="empty">请先在匹配结果中选择“我想合作”的需求。</view>
+  </view>
+
+  <form bindsubmit="submitForm">
+    <view class="card">
+      <text class="section-title">中介服务协议</text>
+      <scroll-view scroll-y class="agreement-box">
+        <text class="agreement-title">《TechNexus 技术撮合中介服务协议》</text>
+        <text class="agreement-section">版本：TechNexus-2026-06-01-v2。本协议用于试用版线上确认，正式成交前可根据实际合作主体、项目金额和交易结构另行签署正式书面协议。</text>
+        <text class="agreement-section">一、协议主体：甲方为提交技术成果、合作意向或委托撮合需求的来访者、个人、团队或单位。乙方为 TechNexus 技术经理人平台运营方及其授权服务人员。</text>
+        <text class="agreement-section">二、服务内容：乙方提供需求检索、快速匹配、AI 智能匹配、匹配理由生成、合作意向收集、人工审核、需求方联系协调、沟通安排、材料流转和撮合跟进等技术经纪服务。</text>
+        <text class="agreement-section">三、服务费用：甲方可免费查看平台生成的匹配结果。若经乙方推荐、介绍、协调或撮合达成实质性合作，甲方应按实际成交金额的 5% 向乙方支付技术撮合中介服务费。</text>
+        <text class="agreement-section">四、防跳单约定：自乙方向甲方推荐、披露或协助接触某一需求方、需求项目、联系人或技术需求信息之日起 12 个月内，甲方不得绕开乙方私下与该需求方或其关联方就同一或实质相近项目达成合作。</text>
+        <text class="agreement-section">五、信息真实性与知识产权：甲方应保证提交信息真实、合法、有效，不侵犯他人知识产权、商业秘密、个人信息权益或其他合法权益。</text>
+        <text class="agreement-section">六、保密与信息展示：平台前台不展示需求方联系方式。甲方通过平台获得的需求信息、匹配结果和沟通记录仅可用于本次合作评估，不得擅自公开、转发、出售或用于绕开乙方的私下交易。</text>
+        <text class="agreement-section">七、AI 匹配说明：快速匹配仅通过本地规则进行模糊检索，不调用外部 AI API；AI 智能匹配会调用 DeepSeek API 对候选需求进行精排并生成理由。AI 匹配结果仅作为辅助参考。</text>
+        <text class="agreement-section">八、合作审核与免责：乙方有权根据资料完整性、需求匹配度、合法合规风险和服务资源安排决定是否继续撮合，不保证一定联系成功、签约或产生收益。</text>
+        <text class="agreement-section">九、个人信息与数据使用：甲方同意乙方为完成匹配、审核、联系、撮合和后台管理之目的，保存并使用甲方提交的姓名、手机号、单位、技术成果摘要、留言、匹配需求和跟进记录。</text>
+        <text class="agreement-section">十、争议解决：因本协议或技术撮合服务产生争议的，双方应先友好协商；协商不成的，以后续正式签署文件约定为准。</text>
+      </scroll-view>
+      <checkbox-group bindchange="agreementChange">
+        <label class="check-row">
+          <checkbox value="agree" checked="{{agreement}}" />
+          <text>我已完整阅读并同意《TechNexus 技术撮合中介服务协议》，确认通过平台撮合成交后按实际成交金额的 5% 支付技术撮合中介服务费。</text>
+        </label>
+      </checkbox-group>
+
+      <label class="field">
+        <text class="field-label">姓名</text>
+        <input class="input" name="name" placeholder="必填" />
+      </label>
+      <label class="field">
+        <text class="field-label">手机号</text>
+        <input class="input" name="phone" type="number" placeholder="必填，用于平台人工联系" />
+      </label>
+      <label class="field">
+        <text class="field-label">单位</text>
+        <input class="input" name="company" placeholder="必填" />
+      </label>
+      <label class="field">
+        <text class="field-label">留言</text>
+        <textarea class="textarea" name="message" placeholder="可补充合作诉求、时间安排或希望平台注意的信息。"></textarea>
+      </label>
+      <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading || !selected}}">提交合作意向</button>
+    </view>
+  </form>
+
+  <view wx:if="{{success}}" class="success-box">
+    <text class="section-title">合作意向已提交</text>
+    <view class="muted">请保存查询码，用于查看后续对接进度。</view>
+    <text class="query-code">{{queryCode}}</text>
+    <view class="actions wrap">
+      <button class="btn small" bindtap="copyCode">复制查询码</button>
+      <button class="btn small primary" bindtap="goProgress">查询进度</button>
+      <button class="btn small ghost" bindtap="previewQr">关注公众号</button>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,63 @@
+const API_BASE = "https://technexus-demo.onrender.com";
+
+function request(path, options = {}) {
+  const app = getApp();
+  const base = app && app.globalData && app.globalData.apiBase ? app.globalData.apiBase : API_BASE;
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: `${base}${path}`,
+      method: options.method || "GET",
+      data: options.data || {},
+      timeout: options.timeout || 60000,
+      header: {
+        "content-type": "application/json"
+      },
+      success(res) {
+        const data = res.data || {};
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(data);
+          return;
+        }
+        reject(new Error(data.message || `请求失败：${res.statusCode}`));
+      },
+      fail(error) {
+        reject(new Error(error.errMsg || "网络请求失败"));
+      }
+    });
+  });
+}
+
+function getStats() {
+  return request("/api/stats");
+}
+
+function matchDemands(payload) {
+  return request("/api/match", {
+    method: "POST",
+    data: payload,
+    timeout: 90000
+  });
+}
+
+function submitIntent(payload) {
+  return request("/api/intents", {
+    method: "POST",
+    data: payload
+  });
+}
+
+function queryProgress(queryCode) {
+  return request("/api/progress/query", {
+    method: "POST",
+    data: {
+      query_code: queryCode
+    }
+  });
+}
+
+module.exports = {
+  getStats,
+  matchDemands,
+  queryProgress,
+  submitIntent
+};

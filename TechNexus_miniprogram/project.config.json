@@ -1,0 +1,22 @@
+{
+  "description": "TechNexus技术经理人微信小程序试用版",
+  "packOptions": {
+    "ignore": []
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "newFeature": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "latest",
+  "appid": "wxc061a1b820931ced",
+  "projectname": "TechNexus技术经理人",
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
+}

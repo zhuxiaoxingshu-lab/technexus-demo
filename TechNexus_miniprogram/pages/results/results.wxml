@@ -1,0 +1,38 @@
+<view class="page">
+  <view class="card">
+    <text class="section-title">{{matchMode == 'quick' ? '快速匹配结果' : 'AI智能匹配结果'}}</text>
+    <view class="muted">最多展示 5 条需求，只展示匹配分、理由和合作建议，不展示需求方联系方式。</view>
+    <view class="actions">
+      <button class="btn ghost" bindtap="goSubmit">修改成果</button>
+    </view>
+  </view>
+
+  <view wx:if="{{!results.length}}" class="empty">暂无匹配结果。请先提交技术成果，系统会返回最适合撮合的技术需求。</view>
+
+  <view wx:for="{{results}}" wx:key="index" class="result-card {{item.level}}">
+    <view class="result-head">
+      <view class="result-name">{{item.name}}</view>
+      <view class="score">
+        <text>{{item.score}}%</text>
+        <text class="score-caption">{{item.score_label}}</text>
+      </view>
+    </view>
+    <view class="tags">
+      <text wx:for="{{item.tags}}" wx:for-item="tag" wx:key="*this" class="tag">{{tag}}</text>
+    </view>
+    <view wx:for="{{item.dimensions_list}}" wx:for-item="dim" wx:key="name" class="bar-row">
+      <view class="bar-label">
+        <text>{{dim.name}}</text>
+        <text>{{dim.value}}</text>
+      </view>
+      <view class="bar-track">
+        <view class="bar-fill" style="width: {{dim.value}}%;"></view>
+      </view>
+    </view>
+    <view class="reason">{{item.reason || '暂无匹配理由，建议由平台人工复核。'}}</view>
+    <view class="suggestion">{{item.suggestion || '建议补充成果指标、成熟度和合作方式后继续撮合。'}}</view>
+    <view class="actions">
+      <button class="btn primary" data-index="{{item.index}}" bindtap="chooseIntent">我想合作</button>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,18 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/submit/submit",
+    "pages/results/results",
+    "pages/intent/intent",
+    "pages/progress/progress"
+  ],
+  "window": {
+    "navigationBarTitleText": "TechNexus技术经理人",
+    "navigationBarBackgroundColor": "#10211e",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f6f8f7"
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,55 @@
+<view class="page">
+  <view class="card">
+    <view class="brand-row">
+      <image class="brand-logo" src="{{avatar}}" mode="aspectFit" />
+      <view>
+        <text class="brand-name">TechNexus技术经理人</text>
+        <text class="brand-sub">技术成果找需求</text>
+      </view>
+    </view>
+    <view class="title">提交技术成果，匹配可对接的企业技术需求</view>
+    <view class="muted">基于 JSTEC 真实需求库进行快速匹配和 AI 智能匹配。前台不展示需求方联系方式，合作意向统一进入后台人工审核。</view>
+    <view class="actions">
+      <button class="btn primary" bindtap="goSubmit">开始匹配</button>
+      <button class="btn ghost" bindtap="goProgress">查询进度</button>
+    </view>
+    <view class="stats">
+      <view class="stat">
+        <text class="stat-number">{{stats.demand_count}}</text>
+        <text>已入库需求</text>
+      </view>
+      <view class="stat">
+        <text class="stat-number">5%</text>
+        <text>成交后服务费</text>
+      </view>
+      <view class="stat">
+        <text class="stat-number">{{stats.ai_mode}}</text>
+        <text>匹配模式</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="card dark">
+    <text class="section-title">收费规则明示</text>
+    <text class="fee-number">5%</text>
+    <view class="muted">AI 匹配结果可免费查看。若通过平台撮合并最终成交，按实际成交金额收取技术撮合中介服务费。</view>
+  </view>
+
+  <view class="card official-card" bindtap="previewQr">
+    <image class="official-avatar" src="{{avatar}}" mode="aspectFit" />
+    <view class="official-text">
+      <text class="official-strong">关注 OPC 创业汇</text>
+      <text class="muted">获取技术撮合进展、项目更新和后续小程序入口。点击可放大二维码。</text>
+    </view>
+    <image class="official-qr" src="{{qrcode}}" mode="aspectFit" />
+  </view>
+
+  <view class="card">
+    <text class="section-title">服务流程</text>
+    <view class="detail-row"><text>1</text><text>提交技术成果与应用场景</text></view>
+    <view class="detail-row"><text>2</text><text>系统返回 5 条以内匹配需求</text></view>
+    <view class="detail-row"><text>3</text><text>确认中介协议并提交合作意向</text></view>
+    <view class="detail-row"><text>4</text><text>平台在 3 个工作日内初步审核或联系</text></view>
+    <view class="detail-row"><text>5</text><text>人工联系双方，推动线上会议、协议和成交</text></view>
+  </view>
+</view>

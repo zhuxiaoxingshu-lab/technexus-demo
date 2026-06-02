@@ -1,0 +1,66 @@
+<view class="page">
+  <view class="card">
+    <text class="section-title">选择匹配方式</text>
+    <view class="mode-row">
+      <view class="mode-card {{matchMode == 'ai' ? 'active' : ''}}" data-mode="ai" bindtap="chooseMode">
+        <text class="mode-title">AI智能匹配</text>
+        <text class="muted">调用 DeepSeek API 精排并生成理由</text>
+      </view>
+      <view class="mode-card {{matchMode == 'quick' ? 'active' : ''}}" data-mode="quick" bindtap="chooseMode">
+        <text class="mode-title">快速匹配</text>
+        <text class="muted">不调用 API，先看大致方向</text>
+      </view>
+    </view>
+    <view class="hint">字段不必全部填写，但成果摘要、应用场景和技术优势越清楚，匹配越精准。</view>
+  </view>
+
+  <form bindsubmit="submitForm">
+    <view class="card">
+      <label class="field">
+        <text class="field-label">成果名称</text>
+        <input class="input" name="title" placeholder="例如：高导热石墨烯复合散热材料" />
+      </label>
+      <label class="field">
+        <text class="field-label">技术领域</text>
+        <input class="input" name="tech_field" placeholder="例如：新材料 / 新能源 / 电子信息" />
+      </label>
+      <label class="field">
+        <text class="field-label">所在地区</text>
+        <input class="input" name="region" placeholder="例如：江苏省 / 无锡市" />
+      </label>
+      <label class="field">
+        <text class="field-label">应用场景</text>
+        <textarea class="textarea" name="application_scene" placeholder="这项成果主要用在哪些行业、产品或生产环节？"></textarea>
+      </label>
+      <label class="field">
+        <text class="field-label">技术成果摘要</text>
+        <textarea class="textarea" name="summary" placeholder="请描述技术原理、核心指标、已完成工作、适合解决的问题。"></textarea>
+      </label>
+      <label class="field">
+        <text class="field-label">核心技术优势</text>
+        <textarea class="textarea" name="advantages" placeholder="例如成本更低、效率更高、可靠性更好、可规模化等。"></textarea>
+      </label>
+      <label class="field">
+        <text class="field-label">解决的问题</text>
+        <textarea class="textarea" name="problem" placeholder="希望帮助企业解决什么痛点？"></textarea>
+      </label>
+      <label class="field">
+        <text class="field-label">当前成熟度</text>
+        <input class="input" name="maturity" placeholder="例如：实验室阶段 / 小试 / 中试 / 已量产" />
+      </label>
+      <label class="field">
+        <text class="field-label">知识产权情况</text>
+        <input class="input" name="ip_status" placeholder="例如：专利 / 软著 / 技术秘密 / 暂无" />
+      </label>
+      <label class="field">
+        <text class="field-label">期望合作方式</text>
+        <input class="input" name="cooperation" placeholder="例如：技术转让 / 合作开发 / 技术服务" />
+      </label>
+      <label class="field">
+        <text class="field-label">补充说明 / 相关链接</text>
+        <input class="input" name="extra_note" placeholder="可填写专利号、论文链接、产品网页、案例说明等。" />
+      </label>
+      <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading}}">开始匹配</button>
+    </view>
+  </form>
+</view>

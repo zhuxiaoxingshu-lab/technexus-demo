@@ -6,7 +6,7 @@ Page({
       demand_count: "-",
       ai_mode: "-"
     },
-    avatar: "/assets/wechat-official-avatar.png",
+    avatar: "/assets/wechat-official-avatar.jpg",
     qrcode: "/assets/wechat-official-qrcode.jpg"
   },
 

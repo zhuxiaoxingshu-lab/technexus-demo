@@ -1,14 +1,34 @@
 {
   "description": "TechNexus技术经理人微信小程序试用版",
   "packOptions": {
-    "ignore": []
+    "ignore": [],
+    "include": []
   },
   "setting": {
     "urlCheck": false,
     "es6": true,
     "postcss": true,
     "minified": true,
-    "newFeature": true
+    "newFeature": true,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "enhance": false,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
   },
   "compileType": "miniprogram",
   "libVersion": "latest",
@@ -18,5 +38,6 @@
   "editorSetting": {
     "tabIndent": "insertSpaces",
     "tabSize": 2
-  }
+  },
+  "simulatorPluginLibVersion": {}
 }

@@ -35,7 +35,7 @@
   </view>
 
   <view class="card official-card" bindtap="previewQr">
-    <image class="official-avatar" src="/assets/wechat-official-avatar.png" mode="aspectFit" />
+    <image class="official-avatar" src="/assets/wechat-official-avatar.jpg" mode="aspectFit" />
     <view class="official-text">
       <text class="official-strong">关注 OPC 创业汇</text>
       <text class="muted">后续小程序上线和项目更新会优先在这里发布。</text>

@@ -12,6 +12,9 @@ const state = {
     status: "",
     keyword: "",
   },
+  matchFilters: {
+    keyword: "",
+  },
 };
 
 const titleMap = {
@@ -152,6 +155,7 @@ function setMatchMode(mode) {
 async function runMatch(payload, button) {
   const data = payload || formDataToObject($("#submission-form"));
   data.match_mode = state.matchMode;
+  data.client_source = "网页端";
   state.submission = data;
   setButtonLoading(button, true, state.matchMode === "quick" ? "快速匹配中" : "AI匹配中");
   $("#result-status").textContent =
@@ -435,12 +439,19 @@ async function loadAdmin() {
       resetAdminData();
       return;
     }
-    const query = intentFilterQuery();
-    const [stats, intents] = await Promise.all([api("/api/stats"), api(`/api/intents${query}`)]);
+    const intentQuery = intentFilterQuery();
+    const matchQuery = matchFilterQuery();
+    const [stats, intents, matches] = await Promise.all([
+      api("/api/stats"),
+      api(`/api/intents${intentQuery}`),
+      api(`/api/matches${matchQuery}`),
+    ]);
     updateStats(stats);
     state.adminStatuses = intents.statuses || [];
     renderIntentFilterOptions();
     renderIntentTable(intents.items || []);
+    renderMatchFilter();
+    renderMatchTable(matches.items || []);
     if (!$("#demand-preview").dataset.loaded) {
       await loadDemandPreview();
     }
@@ -460,6 +471,28 @@ function intentFilterQuery() {
   if (state.intentFilters.keyword) params.set("keyword", state.intentFilters.keyword);
   const query = params.toString();
   return query ? `?${query}` : "";
+}
+
+function matchFilterQuery() {
+  const params = new URLSearchParams();
+  if (state.matchFilters.keyword) params.set("keyword", state.matchFilters.keyword);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function renderMatchFilter() {
+  $("#match-keyword").value = state.matchFilters.keyword || "";
+}
+
+function applyMatchFilters() {
+  state.matchFilters.keyword = $("#match-keyword").value.trim();
+  loadAdmin();
+}
+
+function clearMatchFilters() {
+  state.matchFilters.keyword = "";
+  $("#match-keyword").value = "";
+  loadAdmin();
 }
 
 function renderIntentFilterOptions() {
@@ -502,6 +535,7 @@ function resetAdminData() {
   $("#admin-match-count").textContent = "-";
   $("#admin-intent-count").textContent = "-";
   $("#admin-ai-mode").textContent = "-";
+  $("#match-table").innerHTML = `<tr><td colspan="5">登录后显示匹配记录</td></tr>`;
   $("#intent-table").innerHTML = `<tr><td colspan="8">登录后显示合作意向</td></tr>`;
   $("#intent-detail").className = "intent-detail empty-state";
   $("#intent-detail").textContent = "登录后查看线索详情。";
@@ -544,10 +578,68 @@ async function logoutAdmin() {
   }
   setAdminView(false, "");
   $("#demand-preview").dataset.loaded = "";
+  $("#match-table").innerHTML = `<tr><td colspan="5">请先登录后台</td></tr>`;
   $("#intent-table").innerHTML = `<tr><td colspan="8">请先登录后台</td></tr>`;
   $("#intent-detail").className = "intent-detail empty-state";
   $("#intent-detail").textContent = "请选择左侧线索查看详情。";
   toast("已退出后台");
+}
+
+function renderMatchTable(items) {
+  const table = $("#match-table");
+  if (!items.length) {
+    table.innerHTML = `<tr><td colspan="5">暂无匹配记录</td></tr>`;
+    return;
+  }
+  table.innerHTML = items
+    .map((item) => {
+      const submission = item.submission || {};
+      const results = item.results || [];
+      return `
+        <tr>
+          <td>${escapeHtml(item.created_at || "-")}</td>
+          <td>
+            <span class="status-pill">${escapeHtml(item.match_mode_label || "-")}</span>
+            ${item.ai_message ? `<p class="table-muted">${escapeHtml(item.ai_message)}</p>` : ""}
+          </td>
+          <td>
+            <strong>${escapeHtml(submission.title || "未填写成果名称")}</strong>
+            <div class="tags compact-tags">
+              ${tag(submission.tech_field)}
+              ${tag(submission.region)}
+              ${tag(submission.maturity)}
+              ${tag(submission.cooperation)}
+              ${tag(submission.client_source)}
+            </div>
+            ${submission.application_scene ? `<p class="table-muted">场景：${escapeHtml(submission.application_scene)}</p>` : ""}
+          </td>
+          <td class="match-summary">
+            ${escapeHtml(submission.summary || submission.advantage || submission.advantages || submission.problem || "-")}
+          </td>
+          <td>
+            <div class="mini-match-results">
+              ${
+                results.length
+                  ? results
+                      .slice(0, 3)
+                      .map(
+                        (result) => `
+                          <div>
+                            <strong>${escapeHtml(result.name || "-")}</strong>
+                            <span class="score-text score-${scoreLevel(result.score)}">${escapeHtml(result.score || "-")}%</span>
+                          </div>
+                        `,
+                      )
+                      .join("")
+                  : "暂无匹配结果"
+              }
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+  refreshIcons();
 }
 
 function renderIntentTable(items) {
@@ -844,14 +936,19 @@ function bindEvents() {
   $("#progress-query").addEventListener("click", () => queryProgress($("#progress-query")));
   $("#copy-query-code").addEventListener("click", async () => {
     const code = $("#success-query-code").textContent.trim();
+    if (!code || code === "-") {
+      toast("暂无可复制的查询码");
+      return;
+    }
     try {
       await navigator.clipboard.writeText(code);
-      toast("查询码已复制");
+      toast(`查询码 ${code} 已复制`);
     } catch {
       toast(`查询码：${code}`);
     }
   });
   $("#admin-refresh").addEventListener("click", loadAdmin);
+  $("#match-refresh").addEventListener("click", loadAdmin);
   $("#admin-logout").addEventListener("click", logoutAdmin);
   $("#admin-login-form").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -867,6 +964,14 @@ function bindEvents() {
     if (event.key === "Enter") {
       event.preventDefault();
       applyIntentFilters();
+    }
+  });
+  $("#match-filter").addEventListener("click", applyMatchFilters);
+  $("#match-clear-filter").addEventListener("click", clearMatchFilters);
+  $("#match-keyword").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyMatchFilters();
     }
   });
   $("#demand-search").addEventListener("click", () => loadDemandPreview($("#demand-keyword").value.trim()));

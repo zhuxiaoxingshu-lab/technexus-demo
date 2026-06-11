@@ -343,13 +343,19 @@
                   <button class="btn primary" id="intent-submit"><i data-lucide="send"></i>提交合作意向</button>
                 </div>
                 <div id="intent-success" class="success-panel" hidden>
-                  <div>
+                  <div class="success-main">
                     <span class="muted-label">合作意向已提交</span>
                     <strong>请保存查询码，用于查看对接进度。</strong>
                     <p id="success-promise">平台将在 3 个工作日内完成初步审核或联系。</p>
+                    <div class="success-next">
+                      <span><i data-lucide="phone-call"></i>平台核实成果</span>
+                      <span><i data-lucide="building-2"></i>联系需求方</span>
+                      <span><i data-lucide="list-checks"></i>查询码跟进</span>
+                    </div>
                   </div>
                   <div class="query-code-box">
-                    <span id="success-query-code">-</span>
+                    <span class="muted-label">你的查询码</span>
+                    <strong id="success-query-code">-</strong>
                     <button class="btn" id="copy-query-code"><i data-lucide="copy"></i>复制</button>
                     <button class="btn primary" data-view="progress"><i data-lucide="list-checks"></i>查询进度</button>
                   </div>
@@ -435,6 +441,38 @@
               <div class="kpi"><span>匹配记录</span><strong id="admin-match-count">-</strong></div>
               <div class="kpi"><span>合作意向</span><strong id="admin-intent-count">-</strong></div>
               <div class="kpi"><span>AI 状态</span><strong id="admin-ai-mode">-</strong></div>
+            </div>
+            <div class="band">
+              <div class="band-header">
+                <div>
+                  <h2>匹配记录 / 潜在线索</h2>
+                  <p>用户点击匹配后，即使没有提交合作意向，也会在这里留下输入内容。</p>
+                </div>
+                <button class="btn ghost" id="match-refresh"><i data-lucide="refresh-cw"></i>刷新</button>
+              </div>
+              <div class="band-body">
+                <div class="match-toolbar">
+                  <input id="match-keyword" placeholder="搜索成果名称、技术领域、摘要、匹配需求" />
+                  <button class="btn" id="match-filter"><i data-lucide="search"></i>筛选</button>
+                  <button class="btn ghost" id="match-clear-filter"><i data-lucide="x"></i>清空</button>
+                </div>
+                <div class="table-wrap">
+                  <table class="match-table">
+                    <thead>
+                      <tr>
+                        <th>时间</th>
+                        <th>匹配方式</th>
+                        <th>用户输入</th>
+                        <th>技术摘要</th>
+                        <th>匹配到的需求</th>
+                      </tr>
+                    </thead>
+                    <tbody id="match-table">
+                      <tr><td colspan="5">暂无匹配记录</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
             <div class="admin-layout">
             <div class="band">

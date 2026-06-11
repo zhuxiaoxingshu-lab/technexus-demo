@@ -869,7 +869,7 @@ textarea:focus {
 }
 
 .success-panel strong,
-.query-code-box span {
+.query-code-box strong {
   display: block;
   font-size: 20px;
 }
@@ -879,19 +879,55 @@ textarea:focus {
   color: var(--muted);
 }
 
-.query-code-box {
+.success-main {
+  min-width: 0;
+}
+
+.success-next {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.success-next span {
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  border: 1px solid #bfe6d7;
+  background: #ffffff;
+  border-radius: 999px;
+  color: #23433d;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.success-next svg {
+  width: 15px;
+  height: 15px;
+}
+
+.query-code-box {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
   gap: 10px;
   border: 1px solid #bfe6d7;
   background: #fff;
   border-radius: var(--radius);
   padding: 10px;
+  min-width: 260px;
 }
 
-.query-code-box span {
+.query-code-box strong {
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.query-code-box .btn {
+  width: 100%;
 }
 
 .progress-query-form {
@@ -1051,6 +1087,14 @@ textarea:focus {
   margin-bottom: 14px;
 }
 
+.match-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -1059,6 +1103,10 @@ table {
   width: 100%;
   border-collapse: collapse;
   min-width: 740px;
+}
+
+.match-table {
+  min-width: 980px;
 }
 
 th,
@@ -1082,6 +1130,45 @@ th {
   background: #effaf5;
   border-radius: 999px;
   padding: 3px 8px;
+}
+
+.table-muted {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.compact-tags {
+  margin-top: 8px;
+}
+
+.compact-tags .tag {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.match-summary {
+  max-width: 320px;
+  color: #31443f;
+  line-height: 1.65;
+}
+
+.mini-match-results {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-match-results div {
+  border: 1px solid var(--line);
+  background: #fbfdfc;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.mini-match-results strong {
+  display: block;
+  margin-bottom: 5px;
 }
 
 .compact-form {
@@ -1294,6 +1381,7 @@ th {
   .form-grid,
   .login-form,
   .match-mode-panel,
+  .match-toolbar,
   .progress-query-form,
   .success-panel,
   .official-account-card,

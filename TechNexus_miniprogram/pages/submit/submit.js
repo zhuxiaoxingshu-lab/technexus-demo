@@ -24,7 +24,8 @@ Page({
   submitForm(event) {
     const payload = {
       ...event.detail.value,
-      match_mode: this.data.matchMode
+      match_mode: this.data.matchMode,
+      client_source: "微信小程序"
     };
     if (!hasUsefulContent(payload)) {
       wx.showToast({ title: "请至少填写一项成果信息", icon: "none" });

@@ -284,6 +284,12 @@ button::after {
   border-radius: 12rpx;
 }
 
+.hint.subtle {
+  background: #f7fbfa;
+  border-style: solid;
+  color: #6d7f79;
+}
+
 .result-card {
   background: #ffffff;
   border: 1rpx solid #dce5e1;

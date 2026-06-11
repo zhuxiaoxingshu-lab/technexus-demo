@@ -12,6 +12,7 @@
       </view>
     </view>
     <view class="hint">字段不必全部填写，但成果摘要、应用场景和技术优势越清楚，匹配越精准。</view>
+    <view class="hint subtle">点击开始匹配后，平台后台会保存本次输入内容作为潜在线索，仅用于人工审核和后续撮合。</view>
   </view>
 
   <form bindsubmit="submitForm">

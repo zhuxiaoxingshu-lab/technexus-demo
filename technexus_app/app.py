@@ -1354,6 +1354,88 @@ def decode_json_field(value: object, default: object) -> object:
         return default
 
 
+def match_mode_label(ai_meta: dict) -> str:
+    mode = clean_text(ai_meta.get("match_mode"))
+    used_ai = bool(ai_meta.get("used_ai"))
+    if mode == "quick":
+        return "快速匹配"
+    if used_ai:
+        return "AI智能匹配"
+    return "AI匹配-本地兜底"
+
+
+def match_search_text(item: dict) -> str:
+    submission = item.get("submission") or {}
+    results = item.get("results") or []
+    values: list[object] = [
+        item.get("created_at"),
+        item.get("match_mode_label"),
+        item.get("ai_message"),
+        submission.get("title"),
+        submission.get("tech_field"),
+        submission.get("region"),
+        submission.get("application_scene"),
+        submission.get("summary"),
+        submission.get("advantage"),
+        submission.get("advantages"),
+        submission.get("problem"),
+        submission.get("maturity"),
+        submission.get("ip_status"),
+        submission.get("cooperation"),
+        submission.get("extra_note"),
+        submission.get("client_source"),
+    ]
+    for result in results:
+        values.extend(
+            [
+                result.get("name"),
+                result.get("tech_field"),
+                result.get("demand_type"),
+                result.get("region"),
+                result.get("reason"),
+                result.get("suggestion"),
+            ],
+        )
+    return " ".join(clean_text(value) for value in values).lower()
+
+
+def list_matches(limit: int = 120, keyword: str = "") -> list[dict]:
+    keyword = clean_text(keyword).lower()
+    with db_connect() as conn:
+        rows = db_execute(
+            conn,
+            """
+            SELECT match_id, submission_id, created_at, ai_meta_json, results_json, submission_json
+            FROM matches
+            ORDER BY created_at DESC
+            """,
+        ).fetchall()
+
+    items: list[dict] = []
+    for row in rows:
+        item = dict(row)
+        ai_meta = decode_json_field(item.pop("ai_meta_json", ""), {})
+        results = decode_json_field(item.pop("results_json", ""), [])
+        submission = decode_json_field(item.pop("submission_json", ""), {})
+        if not isinstance(ai_meta, dict):
+            ai_meta = {}
+        if not isinstance(results, list):
+            results = []
+        if not isinstance(submission, dict):
+            submission = {}
+        item["ai_meta"] = ai_meta
+        item["results"] = results[:5]
+        item["submission"] = submission
+        item["match_mode_label"] = match_mode_label(ai_meta)
+        item["ai_message"] = clean_text(ai_meta.get("message"))
+        if keyword and keyword not in match_search_text(item):
+            continue
+        items.append(item)
+        if limit and len(items) >= limit:
+            break
+    return items
+
+
 def list_intents(limit: int = 200, status: str = "", keyword: str = "") -> list[dict]:
     status = clean_text(status)
     keyword = clean_text(keyword).lower()
@@ -1815,6 +1897,13 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                     "Cache-Control": "no-store",
                 },
             )
+            return
+        if parsed.path == "/api/matches":
+            if not self.require_admin():
+                return
+            query = parse_qs(parsed.query)
+            keyword = query.get("keyword", [""])[0]
+            self.send_json({"items": list_matches(120, keyword=keyword)})
             return
         if parsed.path == "/api/demands":
             if not self.require_admin():

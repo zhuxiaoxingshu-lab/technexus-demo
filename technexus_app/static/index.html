@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TechNexus 技术经理人试用版</title>
+  <title>TechNexus 技术经理人</title>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -15,11 +15,11 @@
         </div>
         <div>
           <strong>TechNexus</strong>
-          <span>技术经理人</span>
+          <span>江苏技术经理人</span>
         </div>
       </div>
       <nav class="nav" aria-label="主导航">
-        <button class="active" data-view="home" title="首页"><i data-lucide="home"></i><span>首页</span></button>
+        <button class="active" data-view="home" title="首页"><i data-lucide="home"></i><span>工作台</span></button>
         <button data-view="submit" title="成果提交"><i data-lucide="file-plus-2"></i><span>成果提交</span></button>
         <button data-view="results" title="匹配结果"><i data-lucide="scan-search"></i><span>匹配结果</span></button>
         <button data-view="intent" title="合作意向"><i data-lucide="handshake"></i><span>合作意向</span></button>
@@ -28,7 +28,7 @@
       </nav>
       <div class="fee-note">
         <strong>5%</strong>
-        <span>通过平台撮合并实际成交后，按成交金额收取技术撮合中介服务费。</span>
+        <span>通过平台撮合并实际成交后，按成交金额收取技术撮合中介服务费。需求方联系方式不在前台展示。</span>
       </div>
     </aside>
 
@@ -36,7 +36,7 @@
       <header class="topbar">
         <div>
           <h1 id="page-title">技术成果找需求</h1>
-          <p id="page-subtitle">提交技术成果，AI 匹配真实技术需求，合作意向由平台人工审核撮合。</p>
+          <p id="page-subtitle">提交技术成果，AI 匹配江苏真实技术需求，合作意向由平台人工审核和撮合。</p>
         </div>
         <div class="top-actions">
           <button class="btn ghost" data-view="admin"><i data-lucide="lock-keyhole"></i>进入后台</button>
@@ -46,13 +46,51 @@
 
       <section class="content">
         <section class="view active" id="home">
-          <div class="hero-grid">
-            <div class="band">
-              <div class="band-body match-panel">
+          <div class="hero-rich-grid">
+            <section class="city-hero">
+              <div class="eyebrow">江苏产业需求库 · 南京 / 苏州 / 无锡 / 盐城</div>
+              <h2 class="intro-title">把技术成果放进江苏产业场景里，找到真正可能成交的需求</h2>
+              <p class="intro-copy">TechNexus 基于 JSTEC 真实技术需求库进行快速匹配和 AI 智能匹配。前台不展示需求方联系方式，合作意向统一进入后台人工审核与撮合。</p>
+              <div class="hero-actions">
+                <button class="btn primary" id="home-match"><i data-lucide="scan-search"></i>查看匹配示例</button>
+                <button class="btn ghost-light" data-view="intent"><i data-lucide="file-check-2"></i>查看撮合协议</button>
+              </div>
+              <div class="hero-kpis">
+                <div><strong id="home-demand-count">-</strong><span>已入库技术需求</span></div>
+                <div><strong>5条</strong><span>单次返回候选需求</span></div>
+                <div><strong>3日</strong><span>承诺初步反馈</span></div>
+                <div><strong>5%</strong><span>成交后服务费</span></div>
+              </div>
+            </section>
+
+            <aside class="insight-column">
+              <div class="media-card lab-card">
+                <strong>科研成果与产业需求双向筛选</strong>
+                <span>适合高校、科研院所、技术服务机构和创新型企业提交成果。</span>
+              </div>
+              <div class="metric-grid">
+                <div class="metric"><strong>100</strong><span>匹配评分总分</span></div>
+                <div class="metric"><strong id="home-ai-mode">-</strong><span>当前模式</span></div>
+                <div class="metric"><strong>隐藏</strong><span>需求方联系方式</span></div>
+                <div class="metric"><strong>查询码</strong><span>全程追踪进度</span></div>
+              </div>
+              <div class="fee-card compact home-fee-card">
+                <h2>收费规则明示</h2>
+                <div class="fee-number">5%</div>
+                <p>AI 匹配结果可免费查看。若通过平台撮合并最终成交，按实际成交金额收取技术撮合中介服务费。</p>
+              </div>
+            </aside>
+          </div>
+
+          <div class="workbench-grid">
+            <div class="band quick-match-card">
+              <div class="band-header">
                 <div>
-                  <h2 class="intro-title">提交技术成果，匹配可对接的企业技术需求</h2>
-                  <p class="intro-copy">TechNexus 技术经理人基于 JSTEC 真实需求库进行智能分析和人工撮合。前台不展示需求方联系方式，合作意向统一进入后台审核。</p>
+                  <h2>技术成果找需求</h2>
+                  <p>先用样例体验匹配，再进入完整表单继续提交。</p>
                 </div>
+              </div>
+              <div class="band-body">
                 <div class="quick-form">
                   <label>
                     成果名称
@@ -85,51 +123,82 @@
                     <span>不调用 API，仅用本地规则模糊匹配</span>
                   </button>
                 </div>
-                <div id="match-mode-hint" class="mode-hint">AI智能匹配会调用 DeepSeek API，对候选需求做精排并生成更细的理由。</div>
-                <div class="top-actions left">
-                  <button class="btn primary" id="home-match"><i data-lucide="scan-search"></i>查看匹配示例</button>
-                  <button class="btn warning" data-view="intent"><i data-lucide="file-check-2"></i>查看撮合协议</button>
-                </div>
-                <div class="metric-grid">
-                  <div class="metric"><strong id="home-demand-count">-</strong><span>已入库技术需求</span></div>
-                  <div class="metric"><strong>100</strong><span>匹配评分总分</span></div>
-                  <div class="metric"><strong>5%</strong><span>成交后服务费率</span></div>
-                  <div class="metric"><strong id="home-ai-mode">-</strong><span>AI 状态</span></div>
+                <div id="match-mode-hint" class="mode-hint">AI 智能匹配会调用 DeepSeek API，对候选需求做精排并生成更细的理由。</div>
+              </div>
+            </div>
+
+            <div class="media-card factory-card">
+              <div class="media-card-copy">
+                <strong>面向江苏制造业升级的真实需求</strong>
+                <span>覆盖新材料、智能制造、新能源、电子信息、生物医药等方向，优先呈现可落地对接的产业场景。</span>
+                <div class="lead-list">
+                  <span><i data-lucide="badge-check"></i>隐藏需求方联系方式</span>
+                  <span><i data-lucide="route"></i>后台可追踪对接进度</span>
+                  <span><i data-lucide="phone-call"></i>人工撮合再推进合作</span>
                 </div>
               </div>
             </div>
-            <aside class="fee-card">
-              <div>
-                <h2>收费规则明示</h2>
-                <div class="fee-number">5%</div>
-                <p>AI 匹配结果可免费查看。若通过平台撮合并最终成交，按实际成交金额收取技术撮合中介服务费。</p>
-              </div>
-              <div class="official-account-card">
-                <img class="official-avatar" src="/static/assets/wechat-official-avatar.png" alt="OPC 创业汇公众号头像" />
-                <div>
-                  <strong>关注 OPC 创业汇</strong>
-                  <span>获取技术撮合进展、项目更新和后续小程序入口。</span>
-                </div>
-                <img class="official-qr" src="/static/assets/wechat-official-qrcode.jpg" alt="OPC 创业汇微信公众号二维码" />
-              </div>
-              <button class="btn primary" data-view="intent"><i data-lucide="file-signature"></i>查看中介协议</button>
-            </aside>
           </div>
 
-          <div class="band">
-            <div class="band-header">
-              <div>
-                <h2>服务流程</h2>
-                <p>从成果提交到人工撮合的最小闭环。</p>
+          <div class="home-bottom-grid">
+            <div class="band">
+              <div class="band-header">
+                <div>
+                  <h2>你将看到什么</h2>
+                  <p>返回 5 条候选需求，展示匹配分、理由和下一步建议。</p>
+                </div>
+                <button class="btn primary" data-view="results"><i data-lucide="arrow-right"></i>查看结果页</button>
+              </div>
+              <div class="band-body result-preview-list">
+                <article class="result-preview-item">
+                  <div>
+                    <strong>半导体用高导热有机硅热界面管理材料</strong>
+                    <div class="tags">
+                      <span class="tag">新材料</span>
+                      <span class="tag">半导体封装</span>
+                      <span class="tag">江苏省 / 无锡市</span>
+                    </div>
+                  </div>
+                  <span class="preview-score">92</span>
+                </article>
+                <article class="result-preview-item">
+                  <div>
+                    <strong>高性能石墨烯-石墨研发在能源器件中应用及产业化</strong>
+                    <div class="tags">
+                      <span class="tag">新能源</span>
+                      <span class="tag">能源器件</span>
+                      <span class="tag">江苏省 / 盐城市</span>
+                    </div>
+                  </div>
+                  <span class="preview-score">86</span>
+                </article>
               </div>
             </div>
-            <div class="band-body process">
-              <div class="step"><span class="index">1</span><strong>提交成果</strong><span>用户描述技术成果、应用场景和成熟度。</span></div>
-              <div class="step"><span class="index">2</span><strong>智能分析</strong><span>提取技术领域、产业方向和关键词。</span></div>
-              <div class="step"><span class="index">3</span><strong>匹配需求</strong><span>从真实需求库召回并精排候选项目。</span></div>
-              <div class="step"><span class="index">4</span><strong>提交意向</strong><span>用户确认协议后发起合作申请。</span></div>
-              <div class="step"><span class="index">5</span><strong>人工撮合</strong><span>平台审核后联系双方推动合作。</span></div>
+
+            <div class="band lead-card">
+              <div class="band-header">
+                <div>
+                  <h2>平台工作方式</h2>
+                  <p>不是只给结果，而是帮你持续推进到对接。</p>
+                </div>
+              </div>
+              <div class="band-body process">
+                <div class="step"><span class="index">1</span><strong>提交成果</strong><span>填写成果摘要、应用场景、成熟度等信息。</span></div>
+                <div class="step"><span class="index">2</span><strong>智能分析</strong><span>系统抽取技术领域、产业方向和关键要点。</span></div>
+                <div class="step"><span class="index">3</span><strong>提交意向</strong><span>确认服务协议后，把合作意向送入后台。</span></div>
+                <div class="step"><span class="index">4</span><strong>人工撮合</strong><span>平台审核、联系双方、安排沟通并跟进。</span></div>
+                <div class="step"><span class="index">5</span><strong>查询进度</strong><span>用查询码随时查看当前推进状态。</span></div>
+              </div>
             </div>
+          </div>
+
+          <div class="official-account-card home-contact-card">
+            <img class="official-avatar" src="/static/assets/wechat-official-avatar.png" alt="OPC 创业汇公众号头像" />
+            <div>
+              <strong>关注 OPC 创业汇</strong>
+              <span>获取技术撮合进展、项目更新和后续小程序入口。正式推广时建议换成自有或授权图片素材。</span>
+            </div>
+            <img class="official-qr" src="/static/assets/wechat-official-qrcode.jpg" alt="OPC 创业汇微信公众号二维码" />
           </div>
         </section>
 
@@ -138,7 +207,7 @@
             <div class="band-header">
               <div>
                 <h2>技术成果提交</h2>
-                <p>字段都不是必填，写得越详细，匹配越精准。</p>
+                <p>字段都不是必填，但写得越清楚，系统越容易找到真正适合的需求。</p>
               </div>
               <button class="btn primary" id="submit-match"><i data-lucide="sparkles"></i>开始AI智能匹配</button>
             </div>
@@ -152,7 +221,7 @@
                 <button type="button" class="mode-option" data-match-mode="quick" aria-pressed="false">
                   <i data-lucide="scan-search"></i>
                   <strong>快速匹配</strong>
-                  <span>不调用 API，立即返回本地规则结果</span>
+                  <span>不调用 API，先看本地规则结果</span>
                 </button>
               </div>
               <form id="submission-form" class="form-grid">
@@ -184,7 +253,7 @@
                 </label>
                 <label class="full">
                   技术成果摘要
-                  <textarea name="summary" placeholder="请描述技术原理、核心指标、已完成工作、适合解决的问题。"></textarea>
+                  <textarea name="summary" placeholder="请描述技术原理、核心指标、已完成工作，以及适合解决的问题。"></textarea>
                 </label>
                 <label class="full">
                   核心技术优势
@@ -243,7 +312,7 @@
             <div class="band-header">
               <div>
                 <h2>AI 匹配结果</h2>
-                <p>展示匹配分数、理由和合作建议，不展示需求方联系方式。</p>
+                <p>展示匹配分、理由和合作建议，不展示需求方联系方式。</p>
               </div>
               <button class="btn ghost" data-view="submit"><i data-lucide="pencil"></i>修改成果</button>
             </div>
@@ -281,7 +350,7 @@
                       <h3>三、服务费用</h3>
                       <p>甲方可免费查看平台生成的匹配结果。若甲方经乙方推荐、介绍、协调或撮合，与需求方或其关联方达成技术转让、许可使用、合作开发、技术服务、产品供货、联合申报、项目合作、投资孵化或其他实质性合作，甲方应按实际成交金额的 5% 向乙方支付技术撮合中介服务费。</p>
                       <p>实际成交金额包括但不限于合同价款、技术转让费、许可费、技术开发费、技术服务费、咨询费、项目款、里程碑付款、分期付款、补充协议价款以及因该合作产生的其他经济收益。若交易包含股权、资源置换、设备折价、长期分成或其他非现金安排，双方应在正式撮合或签约前另行确认计费口径。</p>
-                      <p>原则上，甲方应在与需求方签署正式合作文件、达成实质交易或收到首笔合作款项后的 5 个工作日内支付相应服务费；分期履行的，按每期实际发生或实际收款金额对应计算。具体开票、付款账号和税费承担以双方后续确认的正式文件为准。</p>
+                      <p>原则上，甲方应在与需求方签署正式合作文件、达成实质交易或收到首笔合作款项后的 5 个工作日内支付相应服务费；分期履行的，按每期实际发生或实际收款金额对应计算。具体开票、付款账户和税费承担以后续正式文件为准。</p>
                     </section>
                     <section>
                       <h3>四、防跳单约定</h3>
@@ -363,7 +432,7 @@
                     <img class="official-avatar" src="/static/assets/wechat-official-avatar.png" alt="OPC 创业汇公众号头像" />
                     <div>
                       <strong>建议关注公众号</strong>
-                      <span>保存查询码后，可通过公众号持续关注平台通知和小程序上线入口。</span>
+                      <span>保存查询码后，可通过公众号持续关注平台通知和后续小程序入口。</span>
                     </div>
                     <img class="official-qr" src="/static/assets/wechat-official-qrcode.jpg" alt="OPC 创业汇微信公众号二维码" />
                   </div>
@@ -382,7 +451,7 @@
             <div class="band-header">
               <div>
                 <h2>查询对接进度</h2>
-                <p>输入合作意向提交后生成的查询码，查看平台撮合进度。成交金额等商务信息仅后台可见。</p>
+                <p>输入合作意向提交后生成的查询码，查看平台撮合进度。成交金额等商业信息仅后台可见。</p>
               </div>
             </div>
             <div class="band-body">
@@ -440,7 +509,7 @@
               <div class="kpi"><span>需求库</span><strong id="admin-demand-count">-</strong></div>
               <div class="kpi"><span>匹配记录</span><strong id="admin-match-count">-</strong></div>
               <div class="kpi"><span>合作意向</span><strong id="admin-intent-count">-</strong></div>
-              <div class="kpi"><span>AI 状态</span><strong id="admin-ai-mode">-</strong></div>
+              <div class="kpi"><span>AI 模式</span><strong id="admin-ai-mode">-</strong></div>
             </div>
             <div class="band">
               <div class="band-header">
@@ -475,73 +544,73 @@
               </div>
             </div>
             <div class="admin-layout">
-            <div class="band">
-              <div class="band-header">
-                <div>
-                  <h2>合作意向后台</h2>
-                  <p>这里显示来访者提交的信息，便于人工审核和撮合。</p>
-                </div>
-                <button class="btn ghost" id="admin-refresh"><i data-lucide="refresh-cw"></i>刷新</button>
-              </div>
-              <div class="band-body">
-                <div class="intent-toolbar">
-                  <select id="intent-status-filter" title="按状态筛选">
-                    <option value="">全部状态</option>
-                  </select>
-                  <input id="intent-keyword" placeholder="搜索姓名、手机号、单位、需求、备注" />
-                  <button class="btn" id="intent-filter"><i data-lucide="search"></i>筛选</button>
-                  <button class="btn ghost" id="intent-clear-filter"><i data-lucide="x"></i>清空</button>
-                  <button class="btn warning" id="intent-export"><i data-lucide="download"></i>导出 Excel</button>
-                </div>
-                <div class="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>时间</th>
-                        <th>姓名/手机</th>
-                        <th>单位</th>
-                        <th>匹配需求</th>
-                        <th>分数</th>
-                        <th>状态</th>
-                        <th>备注</th>
-                        <th>操作</th>
-                      </tr>
-                    </thead>
-                    <tbody id="intent-table">
-                      <tr><td colspan="8">暂无合作意向</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-            <div class="admin-side">
               <div class="band">
                 <div class="band-header">
                   <div>
-                    <h2>线索详情</h2>
-                    <p>查看完整提交信息、AI 理由和撮合记录。</p>
+                    <h2>合作意向后台</h2>
+                    <p>这里显示来访者提交的信息，便于人工审核和撮合。</p>
                   </div>
+                  <button class="btn ghost" id="admin-refresh"><i data-lucide="refresh-cw"></i>刷新</button>
                 </div>
                 <div class="band-body">
-                  <div id="intent-detail" class="intent-detail empty-state">请选择左侧线索查看详情。</div>
-                </div>
-              </div>
-              <div class="band">
-                <div class="band-header">
-                  <div>
-                    <h2>需求库预览</h2>
-                    <p>用于确认已读取 JSTEC 数据，前台仍不展示联系方式。</p>
+                  <div class="intent-toolbar">
+                    <select id="intent-status-filter" title="按状态筛选">
+                      <option value="">全部状态</option>
+                    </select>
+                    <input id="intent-keyword" placeholder="搜索姓名、手机号、单位、需求、备注" />
+                    <button class="btn" id="intent-filter"><i data-lucide="search"></i>筛选</button>
+                    <button class="btn ghost" id="intent-clear-filter"><i data-lucide="x"></i>清空</button>
+                    <button class="btn warning" id="intent-export"><i data-lucide="download"></i>导出 Excel</button>
+                  </div>
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>时间</th>
+                          <th>姓名/手机</th>
+                          <th>单位</th>
+                          <th>匹配需求</th>
+                          <th>分数</th>
+                          <th>状态</th>
+                          <th>备注</th>
+                          <th>操作</th>
+                        </tr>
+                      </thead>
+                      <tbody id="intent-table">
+                        <tr><td colspan="8">暂无合作意向</td></tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-                <div class="band-body">
-                  <div class="search-row">
-                    <input id="demand-keyword" placeholder="搜索需求名称、领域或详情" />
-                    <button class="btn" id="demand-search"><i data-lucide="search"></i>搜索</button>
+              </div>
+              <div class="admin-side">
+                <div class="band">
+                  <div class="band-header">
+                    <div>
+                      <h2>线索详情</h2>
+                      <p>查看完整提交信息、AI 理由和撮合记录。</p>
+                    </div>
                   </div>
-                  <div id="demand-preview" class="demand-preview"></div>
+                  <div class="band-body">
+                    <div id="intent-detail" class="intent-detail empty-state">请选择左侧线索查看详情。</div>
+                  </div>
+                </div>
+                <div class="band">
+                  <div class="band-header">
+                    <div>
+                      <h2>需求库预览</h2>
+                      <p>用于确认已读取 JSTEC 数据，前台仍不展示联系方式。</p>
+                    </div>
+                  </div>
+                  <div class="band-body">
+                    <div class="search-row">
+                      <input id="demand-keyword" placeholder="搜索需求名称、领域或详情" />
+                      <button class="btn" id="demand-search"><i data-lucide="search"></i>搜索</button>
+                    </div>
+                    <div id="demand-preview" class="demand-preview"></div>
+                  </div>
                 </div>
               </div>
-            </div>
             </div>
           </div>
         </section>

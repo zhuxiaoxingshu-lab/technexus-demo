@@ -72,6 +72,19 @@ DEMAND_FIELDS = [
     "需求ID",
     "详情页链接",
 ]
+DEMAND_NAME_FIELD = DEMAND_FIELDS[0]
+DEMAND_NO_FIELD = DEMAND_FIELDS[1]
+DEMAND_COOP_FIELD = DEMAND_FIELDS[2]
+DEMAND_PRICE_FIELD = DEMAND_FIELDS[3]
+DEMAND_CONTACT_FIELD = DEMAND_FIELDS[4]
+DEMAND_PUBLISHER_FIELD = DEMAND_FIELDS[5]
+DEMAND_DETAIL_FIELD = DEMAND_FIELDS[6]
+DEMAND_TECH_FIELD = DEMAND_FIELDS[7]
+DEMAND_TYPE_FIELD = DEMAND_FIELDS[8]
+DEMAND_REGION_FIELD = DEMAND_FIELDS[9]
+DEMAND_ID_FIELD = DEMAND_FIELDS[10]
+DEMAND_LINK_FIELD = DEMAND_FIELDS[11]
+
 STOPWORDS = {
     "技术",
     "需求",
@@ -98,6 +111,199 @@ STOPWORDS = {
     "方向",
     "领域",
 }
+
+
+TECH_TAG_VOCAB = {
+    "新材料": ["石墨烯", "陶瓷", "高分子", "复合材料", "膜材料", "碳材料", "金属材料", "纳米材料"],
+    "半导体": ["半导体", "晶圆", "芯片", "封装", "先进封装", "光刻", "刻蚀", "沉积", "薄膜", "ALD", "CVD", "LPCVD", "SiC", "GaN"],
+    "新能源": ["新能源", "锂电", "钠电", "储能", "光伏", "风电", "氢能", "燃料电池", "电解槽", "电池"],
+    "生物医药": ["生物医药", "合成生物", "发酵", "酶法", "药物", "医疗器械", "诊断", "蛋白", "细胞"],
+    "智能制造": ["智能制造", "工业自动化", "机器人", "机械臂", "传感器", "数控", "机床", "视觉检测", "工业软件"],
+    "电子信息": ["电子信息", "射频", "光电子", "激光", "MEMS", "通信", "雷达"],
+    "环保低碳": ["环保", "废水", "废气", "固废", "减排", "低碳", "节能", "循环利用", "光催化"],
+    "高端装备": ["高端装备", "装备制造", "成套设备", "精密加工", "真空设备", "工艺装备"],
+}
+
+SCENE_TAG_VOCAB = {
+    "半导体封装": ["半导体封装", "先进封装", "晶圆制造", "晶圆", "芯片封装", "热界面"],
+    "储能器件": ["储能", "电池", "锂电", "钠电", "电极", "电芯", "电池包"],
+    "能源装备": ["光伏", "风电", "氢能", "燃料电池", "能源器件", "逆变器"],
+    "工业废水治理": ["废水", "污水", "染料废水", "工业废水", "吸附", "光催化"],
+    "海工船舶": ["海洋工程", "船舶", "海工", "海上风电", "耐蚀"],
+    "汽车零部件": ["汽车", "车规", "零部件", "新能源车", "汽车电子"],
+    "医疗健康": ["医疗", "医药", "诊断", "临床", "健康"],
+    "家居建材": ["家居", "建材", "定制家居", "涂层", "装饰材料"],
+    "食品农业": ["农业", "育种", "食品", "菌菇", "种植", "饲料"],
+    "工厂产线": ["产线", "工厂", "自动化", "包装机", "生产线", "制造现场"],
+}
+
+INDUSTRY_TAG_VOCAB = {
+    "材料制备": ["材料制备", "合成", "复合材料", "配方", "改性", "制膜", "制粉"],
+    "工艺开发": ["工艺开发", "工艺优化", "工艺定型", "工艺包", "小试", "中试", "放大"],
+    "器件开发": ["器件", "组件", "模组", "单元", "电池组件", "封装器件"],
+    "装备制造": ["装备", "设备", "机台", "反应器", "打包机", "产线设备"],
+    "检测验证": ["检测", "测试", "表征", "验证", "可靠性", "评价"],
+    "系统集成": ["系统集成", "控制系统", "管理系统", "算法集成", "软件平台"],
+    "量产导入": ["量产", "产业化", "导入", "示范线", "工厂化", "批量"],
+}
+
+COOPERATION_TAG_VOCAB = {
+    "技术转让": ["技术转让", "成果转让", "专利转让", "license"],
+    "合作开发": ["合作开发", "联合开发", "协同开发", "共同开发"],
+    "技术服务": ["技术服务", "委托开发", "技术咨询", "解决方案"],
+    "委托研发": ["委托研发", "外包研发", "委托开发"],
+}
+
+MATURITY_LABELS = {
+    1: "概念阶段",
+    2: "实验室阶段",
+    3: "小试阶段",
+    4: "中试阶段",
+    5: "量产阶段",
+}
+
+
+def dedupe_keep_order(values: list[str], limit: int = 0) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = clean_text(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+        if limit and len(result) >= limit:
+            break
+    return result
+
+
+def contains_alias(text: str, alias: str) -> bool:
+    text = clean_text(text)
+    alias = clean_text(alias)
+    if not text or not alias:
+        return False
+    lowered = text.lower()
+    alias_lower = alias.lower()
+    if alias_lower.isascii():
+        return alias_lower in lowered
+    return alias in text
+
+
+def extract_vocab_tags(text: str, vocab: dict[str, list[str]], *, limit: int = 6) -> list[str]:
+    text = clean_text(text)
+    if not text:
+        return []
+    scored: list[tuple[int, int, str]] = []
+    for label, aliases in vocab.items():
+        score = 0
+        for alias in [label, *aliases]:
+            if contains_alias(text, alias):
+                score += 2 if alias == label else 1
+        if score > 0:
+            scored.append((score, len(label), label))
+    scored.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    return [label for _, _, label in scored[:limit]]
+
+
+def maturity_label(text: str) -> str:
+    level = maturity_level(text)
+    if level is None:
+        return ""
+    return MATURITY_LABELS.get(level, "")
+
+
+def extract_region_tokens(text: str) -> list[str]:
+    text = clean_text(text)
+    if not text:
+        return []
+    parts = re.split(r"[\/,，、\-\s]+", text)
+    tokens = []
+    for part in parts:
+        token = clean_text(part)
+        if len(token) >= 2:
+            tokens.append(token)
+    return dedupe_keep_order(tokens, 6)
+
+
+def top_keywords(text: str, limit: int = 8) -> list[str]:
+    tokens = tokenize(text)
+    ranked = sorted(tokens.items(), key=lambda item: (item[1], len(item[0]), item[0]), reverse=True)
+    return [token for token, _ in ranked if len(token) <= 12][:limit]
+
+
+def overlap_tags(left: list[str], right: list[str], *, limit: int = 6) -> list[str]:
+    if not left or not right:
+        return []
+    right_set = set(right)
+    shared = [item for item in left if item in right_set]
+    return dedupe_keep_order(shared, limit)
+
+
+def normalize_tag_payload(payload: dict | None) -> dict:
+    payload = payload or {}
+    return {
+        "tech_tags": dedupe_keep_order(payload.get("tech_tags") or [], 6),
+        "scene_tags": dedupe_keep_order(payload.get("scene_tags") or [], 6),
+        "industry_tags": dedupe_keep_order(payload.get("industry_tags") or [], 6),
+        "cooperation_tags": dedupe_keep_order(payload.get("cooperation_tags") or [], 4),
+        "keywords": dedupe_keep_order(payload.get("keywords") or [], 10),
+        "region_tokens": dedupe_keep_order(payload.get("region_tokens") or [], 6),
+        "maturity_label": clean_text(payload.get("maturity_label", "")),
+    }
+
+
+def compact_tag_payload(payload: dict | None) -> dict:
+    normalized = normalize_tag_payload(payload)
+    return {
+        "技术标签": normalized["tech_tags"],
+        "应用标签": normalized["scene_tags"],
+        "产业标签": normalized["industry_tags"],
+        "合作标签": normalized["cooperation_tags"],
+        "地区标签": normalized["region_tokens"],
+        "成熟度标签": normalized["maturity_label"],
+        "关键词": normalized["keywords"][:8],
+    }
+
+
+def tags_to_text(payload: dict | None) -> str:
+    normalized = compact_tag_payload(payload)
+    parts: list[str] = []
+    for value in normalized.values():
+        if isinstance(value, list):
+            parts.extend(value)
+        elif value:
+            parts.append(value)
+    return " ".join(parts)
+
+
+def alias_lookup(vocab: dict[str, list[str]]) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for label, aliases in vocab.items():
+        mapping[str(label).strip().lower()] = label
+        for alias in aliases:
+            mapping[str(alias).strip().lower()] = label
+    return mapping
+
+
+TECH_ALIAS_LOOKUP = alias_lookup(TECH_TAG_VOCAB)
+SCENE_ALIAS_LOOKUP = alias_lookup(SCENE_TAG_VOCAB)
+INDUSTRY_ALIAS_LOOKUP = alias_lookup(INDUSTRY_TAG_VOCAB)
+COOP_ALIAS_LOOKUP = alias_lookup(COOPERATION_TAG_VOCAB)
+
+
+def normalize_vocab_values(values: object, lookup: dict[str, str], vocab: dict[str, list[str]], *, limit: int) -> list[str]:
+    result: list[str] = []
+    items = values if isinstance(values, list) else [values]
+    for raw in items:
+        text = clean_text(raw)
+        if not text:
+            continue
+        mapped = lookup.get(text.lower())
+        if not mapped:
+            guessed = extract_vocab_tags(text, vocab, limit=1)
+            mapped = guessed[0] if guessed else text
+        result.append(mapped)
+    return dedupe_keep_order(result, limit)
 
 
 def now_iso() -> str:
@@ -364,14 +570,16 @@ class DemandStore:
 
 def prepare_demand_row(item: dict) -> dict:
     cleaned = {clean_text(k): clean_text(v) for k, v in item.items()}
+    cleaned["_structured_tags"] = extract_demand_tags(cleaned)
+    tag_text = tags_to_text(cleaned["_structured_tags"])
     if not cleaned.get("需求ID") and not cleaned.get("需求名称"):
         return {}
     search_text = " ".join(
         cleaned.get(field, "")
         for field in ("需求名称", "技术领域", "需求类型", "所在地区", "需求详情", "合作方式")
     )
-    cleaned["_search_text"] = search_text
-    cleaned["_tokens"] = tokenize(search_text)
+    cleaned["_search_text"] = " ".join([search_text, tag_text]).strip()
+    cleaned["_tokens"] = tokenize(cleaned["_search_text"])
     return cleaned
 
 
@@ -415,7 +623,116 @@ def build_user_text(data: dict, fields: tuple[str, ...]) -> str:
     return " ".join(clean_text(data.get(field, "")) for field in fields)
 
 
-def score_demand(submission: dict, demand: dict) -> dict:
+def extract_submission_tags_local(submission: dict) -> dict:
+    tech_text = build_user_text(submission, ("tech_field", "title", "summary", "advantages", "problem", "extra_note", "attachment_note"))
+    scene_text = build_user_text(submission, ("application_scene", "summary", "problem", "extra_note", "attachment_note"))
+    industry_text = build_user_text(submission, ("tech_field", "application_scene", "summary", "cooperation", "advantages", "extra_note", "attachment_note"))
+    cooperation_text = build_user_text(submission, ("cooperation", "summary", "extra_note", "attachment_note"))
+    full_text = build_user_text(
+        submission,
+        ("title", "tech_field", "application_scene", "summary", "advantages", "problem", "cooperation", "region", "extra_note", "attachment_note"),
+    )
+    return normalize_tag_payload(
+        {
+            "tech_tags": extract_vocab_tags(tech_text, TECH_TAG_VOCAB, limit=6),
+            "scene_tags": extract_vocab_tags(scene_text, SCENE_TAG_VOCAB, limit=6),
+            "industry_tags": extract_vocab_tags(industry_text, INDUSTRY_TAG_VOCAB, limit=6),
+            "cooperation_tags": extract_vocab_tags(cooperation_text, COOPERATION_TAG_VOCAB, limit=4),
+            "keywords": top_keywords(full_text, 10),
+            "region_tokens": extract_region_tokens(clean_text(submission.get("region", ""))),
+            "maturity_label": maturity_label(clean_text(submission.get("maturity", ""))),
+        }
+    )
+
+
+def extract_demand_tags(demand: dict) -> dict:
+    tech_text = " ".join([demand.get(DEMAND_NAME_FIELD, ""), demand.get(DEMAND_TECH_FIELD, ""), demand.get(DEMAND_DETAIL_FIELD, "")])
+    scene_text = " ".join([demand.get(DEMAND_NAME_FIELD, ""), demand.get(DEMAND_DETAIL_FIELD, "")])
+    industry_text = " ".join([demand.get(DEMAND_TECH_FIELD, ""), demand.get(DEMAND_TYPE_FIELD, ""), demand.get(DEMAND_COOP_FIELD, ""), demand.get(DEMAND_DETAIL_FIELD, "")])
+    all_text = " ".join(
+        [
+            demand.get(DEMAND_NAME_FIELD, ""),
+            demand.get(DEMAND_TECH_FIELD, ""),
+            demand.get(DEMAND_TYPE_FIELD, ""),
+            demand.get(DEMAND_REGION_FIELD, ""),
+            demand.get(DEMAND_COOP_FIELD, ""),
+            demand.get(DEMAND_DETAIL_FIELD, ""),
+        ]
+    )
+    return normalize_tag_payload(
+        {
+            "tech_tags": extract_vocab_tags(tech_text, TECH_TAG_VOCAB, limit=6),
+            "scene_tags": extract_vocab_tags(scene_text, SCENE_TAG_VOCAB, limit=6),
+            "industry_tags": extract_vocab_tags(industry_text, INDUSTRY_TAG_VOCAB, limit=6),
+            "cooperation_tags": extract_vocab_tags(demand.get(DEMAND_COOP_FIELD, ""), COOPERATION_TAG_VOCAB, limit=4),
+            "keywords": top_keywords(all_text, 12),
+            "region_tokens": extract_region_tokens(demand.get(DEMAND_REGION_FIELD, "")),
+            "maturity_label": maturity_label(demand.get(DEMAND_DETAIL_FIELD, "")),
+        }
+    )
+
+
+def merge_tag_profiles(*profiles: dict | None) -> dict:
+    merged = normalize_tag_payload({})
+    for profile in profiles:
+        current = normalize_tag_payload(profile)
+        for field in ("tech_tags", "scene_tags", "industry_tags", "cooperation_tags", "keywords", "region_tokens"):
+            max_limit = 10 if field == "keywords" else 6
+            merged[field] = dedupe_keep_order([*merged[field], *current[field]], max_limit)
+        if not merged["maturity_label"] and current["maturity_label"]:
+            merged["maturity_label"] = current["maturity_label"]
+    return merged
+
+
+def maturity_distance_score(left_label: str, right_label: str) -> int:
+    reverse = {value: key for key, value in MATURITY_LABELS.items()}
+    left = reverse.get(clean_text(left_label))
+    right = reverse.get(clean_text(right_label))
+    if not left or not right:
+        return 0
+    return max(0, 16 - abs(left - right) * 6)
+
+
+def recall_score_demand(submission: dict, demand: dict, tags: dict) -> float:
+    user_text = build_user_text(
+        submission,
+        ("title", "tech_field", "application_scene", "summary", "advantages", "problem", "cooperation", "region", "extra_note", "attachment_note"),
+    )
+    user_tokens = tokenize(" ".join([user_text, tags_to_text(tags)]))
+    lexical = cosine(user_tokens, demand.get("_tokens", Counter())) if user_tokens else 0.0
+    demand_tags = normalize_tag_payload(demand.get("_structured_tags"))
+    tech_overlap = overlap_tags(tags.get("tech_tags", []), demand_tags.get("tech_tags", []))
+    scene_overlap = overlap_tags(tags.get("scene_tags", []), demand_tags.get("scene_tags", []))
+    industry_overlap = overlap_tags(tags.get("industry_tags", []), demand_tags.get("industry_tags", []))
+    cooperation_overlap = overlap_tags(tags.get("cooperation_tags", []), demand_tags.get("cooperation_tags", []))
+    keyword_overlap = overlap_tags(tags.get("keywords", []), demand_tags.get("keywords", []), limit=8)
+    region_overlap = overlap_tags(tags.get("region_tokens", []), demand_tags.get("region_tokens", []), limit=4)
+    score = lexical
+    if tech_overlap:
+        score += 0.55 + len(tech_overlap) * 0.18
+    if scene_overlap:
+        score += 0.45 + len(scene_overlap) * 0.16
+    if industry_overlap:
+        score += 0.32 + len(industry_overlap) * 0.12
+    if cooperation_overlap:
+        score += 0.18 + len(cooperation_overlap) * 0.06
+    if keyword_overlap:
+        score += min(0.32, len(keyword_overlap) * 0.05)
+    if region_overlap:
+        score += 0.12
+    score += maturity_distance_score(tags.get("maturity_label", ""), demand_tags.get("maturity_label", "")) / 100.0
+    title = clean_text(submission.get("title", ""))
+    if title and title in demand.get("_search_text", ""):
+        score += 0.22
+
+    tech_field = clean_text(submission.get("tech_field", ""))
+    if tech_field and tech_field in demand.get(DEMAND_TECH_FIELD, ""):
+        score += 0.28
+    return score
+
+
+def score_demand(submission: dict, demand: dict, *, tags: dict | None = None, recall_score: float = 0.0) -> dict:
+    tags = normalize_tag_payload(tags or extract_submission_tags_local(submission))
     user_all = build_user_text(
         submission,
         (
@@ -432,6 +749,7 @@ def score_demand(submission: dict, demand: dict) -> dict:
         ),
     )
     demand_all = demand.get("_search_text", "")
+    demand_tags = normalize_tag_payload(demand.get("_structured_tags"))
     demand_field = " ".join([demand.get("需求名称", ""), demand.get("技术领域", ""), demand.get("需求类型", "")])
     demand_scene = " ".join([demand.get("需求名称", ""), demand.get("需求详情", "")])
     demand_industry = " ".join(
@@ -447,6 +765,25 @@ def score_demand(submission: dict, demand: dict) -> dict:
     industry_score = score_from_similarity(user_industry, demand_industry, baseline=42, scale=185)
     mature_score = maturity_score(clean_text(submission.get("maturity", "")), demand.get("需求详情", ""))
 
+    tech_overlap = overlap_tags(tags.get("tech_tags", []), demand_tags.get("tech_tags", []))
+    scene_overlap = overlap_tags(tags.get("scene_tags", []), demand_tags.get("scene_tags", []))
+    industry_overlap = overlap_tags(tags.get("industry_tags", []), demand_tags.get("industry_tags", []))
+    cooperation_overlap = overlap_tags(tags.get("cooperation_tags", []), demand_tags.get("cooperation_tags", []))
+    region_overlap = overlap_tags(tags.get("region_tokens", []), demand_tags.get("region_tokens", []), limit=4)
+    tag_keywords = overlap_tags(tags.get("keywords", []), demand_tags.get("keywords", []), limit=8)
+
+    if tech_overlap:
+        field_score = max(field_score, min(100, 72 + len(tech_overlap) * 10))
+    if scene_overlap:
+        scene_score = max(scene_score, min(100, 70 + len(scene_overlap) * 9))
+    if industry_overlap:
+        industry_score = max(industry_score, min(100, 68 + len(industry_overlap) * 8))
+    if cooperation_overlap:
+        industry_score = min(100, industry_score + 6)
+    if region_overlap:
+        industry_score = min(100, industry_score + 6)
+    mature_score = min(100, mature_score + maturity_distance_score(tags.get("maturity_label", ""), demand_tags.get("maturity_label", "")))
+
     tech_field = clean_text(submission.get("tech_field", ""))
     if tech_field and tech_field in demand.get("技术领域", ""):
         field_score = max(field_score, 86)
@@ -458,13 +795,25 @@ def score_demand(submission: dict, demand: dict) -> dict:
         industry_score = min(100, industry_score + 8)
 
     total = round(field_score * 0.25 + scene_score * 0.30 + industry_score * 0.25 + mature_score * 0.20)
+    if recall_score > 0:
+        total += min(8, round(recall_score * 4))
     total = max(0, min(100, total))
-    keywords = shared_keywords(user_all, demand_all)
-    reason = build_reason(submission, demand, keywords, total)
-    suggestion = build_suggestion(demand, keywords)
+    keywords = dedupe_keep_order([*tech_overlap, *scene_overlap, *industry_overlap, *tag_keywords], 8) or shared_keywords(user_all, demand_all)
+    matched_tags = {
+        "tech_tags": tech_overlap,
+        "scene_tags": scene_overlap,
+        "industry_tags": industry_overlap,
+        "cooperation_tags": cooperation_overlap,
+        "keywords": keywords,
+    }
+    reason = build_reason(submission, demand, matched_tags, total)
+    suggestion = build_suggestion(demand, matched_tags)
     return {
         **sanitize_demand(demand, include_detail=True),
         "score": total,
+        "structured_tags": compact_tag_payload(demand_tags),
+        "matched_tags": compact_tag_payload(matched_tags),
+        "recall_score": round(recall_score, 4),
         "dimensions": {
             "技术领域": field_score,
             "应用场景": scene_score,
@@ -476,10 +825,20 @@ def score_demand(submission: dict, demand: dict) -> dict:
     }
 
 
-def build_reason(submission: dict, demand: dict, keywords: list[str], score: int) -> str:
+def build_reason(submission: dict, demand: dict, matched_tags: dict, score: int) -> str:
     tech = clean_text(demand.get("技术领域", "")).split(",")[0] or "相关技术领域"
     demand_type = clean_text(demand.get("需求类型", "")) or "技术需求"
-    if keywords:
+    summary_tags = dedupe_keep_order(
+        [
+            *matched_tags.get("tech_tags", []),
+            *matched_tags.get("scene_tags", []),
+            *matched_tags.get("industry_tags", []),
+            *matched_tags.get("keywords", []),
+        ],
+        5,
+    )
+    if summary_tags:
+        keywords = summary_tags
         keyword_text = "、".join(keywords[:5])
         lead = f"双方在{tech}方向存在关键词重合：{keyword_text}。"
     else:
@@ -495,49 +854,43 @@ def build_reason(submission: dict, demand: dict, keywords: list[str], score: int
     return f"{lead}需求类型为{demand_type}，{scene_part}综合判断{level}。"
 
 
-def build_suggestion(demand: dict, keywords: list[str]) -> str:
+def build_suggestion(demand: dict, matched_tags: dict) -> str:
+    keywords = dedupe_keep_order(
+        [
+            *matched_tags.get("tech_tags", []),
+            *matched_tags.get("scene_tags", []),
+            *matched_tags.get("industry_tags", []),
+            *matched_tags.get("keywords", []),
+        ],
+        3,
+    )
     demand_type = clean_text(demand.get("需求类型", "")) or "该需求"
     focus = "、".join(keywords[:3]) if keywords else "样品、指标和应用场景"
     return f"建议先围绕{focus}准备一页技术说明，明确可验证指标、已有样品或案例，再由平台人工审核后撮合双方沟通。"
 
 
-def match_demands(store: DemandStore, submission: dict, limit: int = 8) -> list[dict]:
+def match_demands(store: DemandStore, submission: dict, limit: int = 8, candidate_limit: int = 180, tags: dict | None = None) -> list[dict]:
     store.refresh_if_changed()
-    user_text = build_user_text(
-        submission,
-        (
-            "title",
-            "tech_field",
-            "application_scene",
-            "summary",
-            "advantages",
-            "problem",
-            "cooperation",
-            "region",
-            "extra_note",
-            "attachment_note",
-        ),
-    )
-    user_tokens = tokenize(user_text)
+    tags = normalize_tag_payload(tags or extract_submission_tags_local(submission))
     scored_candidates: list[tuple[float, dict]] = []
     for demand in store.demands:
-        base = cosine(user_tokens, demand.get("_tokens", Counter())) if user_tokens else 0.0
+        base = recall_score_demand(submission, demand, tags)
         tech_field = clean_text(submission.get("tech_field", ""))
         if tech_field and tech_field in demand.get("技术领域", ""):
             base += 0.45
         title = clean_text(submission.get("title", ""))
         if title and title in demand.get("_search_text", ""):
             base += 0.25
-        if base > 0 or not user_tokens:
+        if base > 0 or not any(tags.values()):
             scored_candidates.append((base, demand))
 
-    if user_tokens:
+    if any(tags.values()):
         scored_candidates.sort(key=lambda item: item[0], reverse=True)
-        candidates = [demand for _, demand in scored_candidates[:80]]
+        candidates = scored_candidates[:candidate_limit]
     else:
-        candidates = store.demands[:80]
+        candidates = [(0.0, demand) for demand in store.demands[:candidate_limit]]
 
-    results = [score_demand(submission, demand) for demand in candidates]
+    results = [score_demand(submission, demand, tags=tags, recall_score=base) for base, demand in candidates]
     results.sort(key=lambda item: item["score"], reverse=True)
     return results[:limit]
 
@@ -591,18 +944,177 @@ def deepseek_chat(config: dict, messages: list[dict], *, max_tokens: int = 2600)
 
 
 def parse_json_object(text: str) -> dict:
-    text = clean_text(text)
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start < 0 or end <= start:
-            raise
-        data = json.loads(text[start : end + 1])
+    raw = str(text or "").strip()
+    if not raw:
+        raise ValueError("AI 输出为空")
+
+    candidates: list[str] = [raw]
+    fenced = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", raw, flags=re.IGNORECASE | re.DOTALL).strip()
+    if fenced and fenced not in candidates:
+        candidates.append(fenced)
+
+    start = fenced.find("{")
+    if start >= 0:
+        depth = 0
+        in_string = False
+        escaped = False
+        end = -1
+        for index, char in enumerate(fenced[start:], start):
+            if escaped:
+                escaped = False
+                continue
+            if char == "\\":
+                escaped = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    end = index
+                    break
+        if end > start:
+            balanced = fenced[start : end + 1]
+            cleaned = re.sub(r",\s*([}\]])", r"\1", balanced)
+            cleaned = cleaned.replace("\ufeff", "")
+            cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", cleaned)
+            if balanced not in candidates:
+                candidates.append(balanced)
+            if cleaned not in candidates:
+                candidates.append(cleaned)
+
+    last_error: Exception | None = None
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+            break
+        except json.JSONDecodeError as exc:
+            last_error = exc
+    else:
+        raise last_error or ValueError("AI 输出不是合法 JSON")
+
     if not isinstance(data, dict):
         raise ValueError("AI 输出不是 JSON 对象")
     return data
+
+
+def build_json_repair_messages(text: str, task_name: str) -> list[dict]:
+    system_prompt = (
+        "你是 JSON 修复助手。"
+        "请把用户提供的文本修复成一个合法 JSON 对象。"
+        "不要解释，不要补充无关字段，不要输出 Markdown 代码块。"
+    )
+    user_prompt = json.dumps(
+        {
+            "task": task_name,
+            "input": str(text or ""),
+        },
+        ensure_ascii=False,
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+def parse_json_object_with_ai(config: dict, text: str, *, task_name: str) -> dict:
+    try:
+        return parse_json_object(text)
+    except Exception as first_error:
+        if not ai_is_configured(config):
+            raise
+        repair_content = deepseek_chat(config, build_json_repair_messages(text, task_name), max_tokens=3200)
+        try:
+            return parse_json_object(repair_content)
+        except Exception as second_error:
+            raise RuntimeError(
+                f"{task_name} JSON 解析失败：{first_error}; 修复后仍失败：{second_error}"
+            ) from second_error
+
+
+def build_tag_extraction_messages(submission: dict, local_tags: dict) -> list[dict]:
+    vocab_payload = {
+        "技术标签候选": list(TECH_TAG_VOCAB.keys()),
+        "应用标签候选": list(SCENE_TAG_VOCAB.keys()),
+        "产业标签候选": list(INDUSTRY_TAG_VOCAB.keys()),
+        "合作标签候选": list(COOPERATION_TAG_VOCAB.keys()),
+        "成熟度标签候选": list(MATURITY_LABELS.values()),
+    }
+    system_prompt = (
+        "你是 TechNexus 的标签抽取助手。"
+        "请先阅读技术成果描述，再输出结构化标签。"
+        "优先使用提供的标准标签候选，不要编造不存在的行业标签。"
+        "只输出合法 JSON。"
+    )
+    user_payload = {
+        "submission": compact_submission(submission),
+        "local_seed_tags": compact_tag_payload(local_tags),
+        "standard_vocab": vocab_payload,
+        "required_json_schema": {
+            "技术标签": ["最多6个"],
+            "应用标签": ["最多6个"],
+            "产业标签": ["最多6个"],
+            "合作标签": ["最多4个"],
+            "成熟度标签": "从候选中选1个，无法判断可留空",
+            "关键词": ["最多8个"],
+        },
+    }
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+    ]
+
+
+def normalize_ai_tag_payload(payload: dict) -> dict:
+    return normalize_tag_payload(
+        {
+            "tech_tags": normalize_vocab_values(payload.get("技术标签"), TECH_ALIAS_LOOKUP, TECH_TAG_VOCAB, limit=6),
+            "scene_tags": normalize_vocab_values(payload.get("应用标签"), SCENE_ALIAS_LOOKUP, SCENE_TAG_VOCAB, limit=6),
+            "industry_tags": normalize_vocab_values(payload.get("产业标签"), INDUSTRY_ALIAS_LOOKUP, INDUSTRY_TAG_VOCAB, limit=6),
+            "cooperation_tags": normalize_vocab_values(payload.get("合作标签"), COOP_ALIAS_LOOKUP, COOPERATION_TAG_VOCAB, limit=4),
+            "keywords": dedupe_keep_order(payload.get("关键词") or [], 8),
+            "region_tokens": [],
+            "maturity_label": clean_text(payload.get("成熟度标签", "")),
+        }
+    )
+
+
+def extract_tags_with_ai(config: dict, submission: dict, local_tags: dict) -> tuple[dict, dict]:
+    local_tags = normalize_tag_payload(local_tags)
+    if not ai_is_configured(config):
+        return local_tags, {
+            "used_ai": False,
+            "source": "local",
+            "local_tags": compact_tag_payload(local_tags),
+            "merged_tags": compact_tag_payload(local_tags),
+            "message": "未配置 DeepSeek API，已使用本地标签抽取。",
+        }
+    try:
+        content = deepseek_chat(config, build_tag_extraction_messages(submission, local_tags), max_tokens=1200)
+        ai_payload = parse_json_object_with_ai(config, content, task_name="标签抽取")
+        ai_tags = normalize_ai_tag_payload(ai_payload)
+        merged_tags = merge_tag_profiles(local_tags, ai_tags)
+        return merged_tags, {
+            "used_ai": True,
+            "source": "local+ai",
+            "local_tags": compact_tag_payload(local_tags),
+            "ai_tags": compact_tag_payload(ai_tags),
+            "merged_tags": compact_tag_payload(merged_tags),
+            "message": "已使用 DeepSeek 完成标签抽取。",
+        }
+    except Exception as exc:
+        return local_tags, {
+            "used_ai": False,
+            "source": "local",
+            "local_tags": compact_tag_payload(local_tags),
+            "merged_tags": compact_tag_payload(local_tags),
+            "message": f"AI 标签抽取失败，已退回本地标签：{exc}",
+        }
 
 
 def compact_submission(submission: dict) -> dict:
@@ -635,7 +1147,7 @@ def compact_candidate(result: dict) -> dict:
     }
 
 
-def build_ai_messages(submission: dict, local_results: list[dict]) -> list[dict]:
+def build_ai_messages(submission: dict, local_results: list[dict], tag_profile: dict | None = None) -> list[dict]:
     system_prompt = """
 你是 TechNexus 技术经理人平台的 AI 精排助手。你的任务是根据技术成果信息和候选技术需求，判断哪些需求最适合撮合。
 
@@ -666,6 +1178,7 @@ def build_ai_messages(submission: dict, local_results: list[dict]) -> list[dict]
 """
     payload = {
         "submission": compact_submission(submission),
+        "structured_tags": compact_tag_payload(tag_profile),
         "candidates": [compact_candidate(item) for item in local_results],
     }
     user_prompt = "请对以下候选需求做 AI 精排，并只输出 json：\n" + json.dumps(payload, ensure_ascii=False)
@@ -704,7 +1217,7 @@ def merge_ai_results(local_results: list[dict], ai_payload: dict, config: dict) 
         }
         base["reason"] = clip(ai_item.get("reason") or base.get("reason", ""), 380)
         base["suggestion"] = clip(ai_item.get("suggestion") or base.get("suggestion", ""), 260)
-        base["scoring_source"] = "DeepSeek AI"
+        base["scoring_source"] = "AI标签 + DeepSeek精排"
         base["ai_model"] = clean_text(config.get("model", ""))
         merged.append(base)
         seen.add(demand_id)
@@ -718,22 +1231,43 @@ def merge_ai_results(local_results: list[dict], ai_payload: dict, config: dict) 
     return merged
 
 
-def refine_matches_with_ai(config: dict, submission: dict, local_results: list[dict]) -> tuple[list[dict], dict]:
+def refine_matches_with_ai(
+    config: dict,
+    submission: dict,
+    local_results: list[dict],
+    *,
+    tag_profile: dict | None = None,
+    tag_meta: dict | None = None,
+) -> tuple[list[dict], dict]:
     if not ai_is_configured(config):
         for item in local_results:
             item["scoring_source"] = "本地规则"
         return local_results, {"used_ai": False, "match_mode": "ai", "message": "未配置 DeepSeek API，已使用本地规则匹配。"}
 
     try:
-        messages = build_ai_messages(submission, local_results)
+        messages = build_ai_messages(submission, local_results, tag_profile)
         content = deepseek_chat(config, messages)
-        ai_payload = parse_json_object(content)
+        ai_payload = parse_json_object_with_ai(config, content, task_name="AI精排")
         refined = merge_ai_results(local_results, ai_payload, config)
+        ai_ranked_count = sum(1 for item in refined if item.get("scoring_source") == "AI标签 + DeepSeek精排")
+        if ai_ranked_count == 0:
+            for item in local_results:
+                item["scoring_source"] = "本地规则"
+            return local_results, {
+                "used_ai": False,
+                "match_mode": "ai",
+                "message": "已使用 DeepSeek 完成标签抽取，但精排结果未命中候选需求，已退回本地规则排序。",
+                "model": clean_text(config.get("model", "")),
+                "tag_extraction": tag_meta or {},
+                "structured_tags": compact_tag_payload(tag_profile),
+            }
         return refined, {
             "used_ai": True,
             "match_mode": "ai",
             "message": "已使用 DeepSeek API 进行 AI 精排。",
             "model": clean_text(config.get("model", "")),
+            "tag_extraction": tag_meta or {},
+            "structured_tags": compact_tag_payload(tag_profile),
         }
     except Exception as exc:
         for item in local_results:
@@ -747,7 +1281,7 @@ def refine_matches_with_ai(config: dict, submission: dict, local_results: list[d
 
 def use_quick_match(local_results: list[dict]) -> tuple[list[dict], dict]:
     for item in local_results:
-        item["scoring_source"] = "快速匹配"
+        item["scoring_source"] = "结构化快速匹配"
     return local_results, {
         "used_ai": False,
         "match_mode": "quick",
@@ -1954,11 +2488,31 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 "created_at": now_iso(),
                 "submission": submission,
             }
-            local_results = match_demands(self.store, submission, limit=12)
+            local_tag_profile = extract_submission_tags_local(submission)
+            if match_mode == "quick":
+                tag_profile = local_tag_profile
+                tag_meta = {
+                    "used_ai": False,
+                    "source": "local",
+                    "local_tags": compact_tag_payload(local_tag_profile),
+                    "merged_tags": compact_tag_payload(local_tag_profile),
+                    "message": "已使用本地规则完成标签抽取。",
+                }
+            else:
+                tag_profile, tag_meta = extract_tags_with_ai(self.ai_config, submission, local_tag_profile)
+            local_results = match_demands(self.store, submission, limit=18, candidate_limit=180, tags=tag_profile)
             if match_mode == "quick":
                 refined_results, ai_meta = use_quick_match(local_results)
             else:
-                refined_results, ai_meta = refine_matches_with_ai(self.ai_config, submission, local_results)
+                refined_results, ai_meta = refine_matches_with_ai(
+                    self.ai_config,
+                    submission,
+                    local_results,
+                    tag_profile=tag_profile,
+                    tag_meta=tag_meta,
+                )
+            ai_meta["tag_extraction"] = tag_meta
+            ai_meta["structured_tags"] = compact_tag_payload(tag_profile)
             results = refined_results[:5]
             save_submission(record)
             save_match(

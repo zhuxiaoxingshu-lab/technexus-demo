@@ -2,6 +2,7 @@ const state = {
   submissionId: "",
   submission: {},
   results: [],
+  matchMeta: {},
   selectedResult: null,
   matchMode: "ai",
   currentIntent: null,
@@ -139,8 +140,8 @@ function setMatchMode(mode) {
   if (hint) {
     hint.textContent =
       state.matchMode === "quick"
-        ? "快速匹配不会调用 DeepSeek API，适合先看大致方向。"
-        : "AI智能匹配会调用 DeepSeek API，对候选需求做精排并生成更细的理由。";
+        ? "快速匹配不会调用 DeepSeek API，会先做本地标签抽取，再按规则扩大召回并排序。"
+        : "AI 智能匹配会先抽取标准标签，再扩大候选召回，最后调用 DeepSeek 做精排和理由解释。";
   }
   const submitButton = $("#submit-match");
   if (submitButton) {
@@ -157,10 +158,14 @@ async function runMatch(payload, button) {
   data.match_mode = state.matchMode;
   data.client_source = "网页端";
   state.submission = data;
+  state.matchMeta = {};
   setButtonLoading(button, true, state.matchMode === "quick" ? "快速匹配中" : "AI匹配中");
   $("#result-status").textContent =
-    state.matchMode === "quick" ? "正在进行快速匹配，不调用 DeepSeek API..." : "正在调用 DeepSeek API 进行智能匹配...";
+    state.matchMode === "quick"
+      ? "正在进行快速匹配：先抽取本地标签，再扩大候选召回..."
+      : "正在进行 AI 智能匹配：先做标签抽取，再调用 DeepSeek 精排...";
   $("#result-status").style.display = "block";
+  renderResultMeta({});
   $("#result-list").innerHTML = "";
   try {
     const response = await api("/api/match", {
@@ -169,6 +174,7 @@ async function runMatch(payload, button) {
     });
     state.submissionId = response.submission_id;
     state.results = response.results || [];
+    state.matchMeta = response.ai_meta || {};
     if (response.ai_meta?.message) {
       $("#result-status").textContent = response.ai_meta.message;
       $("#result-status").style.display = "block";
@@ -186,6 +192,8 @@ async function runMatch(payload, button) {
 }
 
 function updateStats(stats) {
+
+
   const demandCount = stats.demand_count ?? "-";
   $("#home-demand-count").textContent = Number(demandCount).toLocaleString("zh-CN");
   $("#admin-demand-count").textContent = Number(demandCount).toLocaleString("zh-CN");
@@ -195,11 +203,120 @@ function updateStats(stats) {
   $("#admin-ai-mode").textContent = stats.ai_mode || "-";
 }
 
-function tag(text) {
-  return text ? `<span class="tag">${escapeHtml(text)}</span>` : "";
+function tag(text, extraClass = "") {
+  return text ? `<span class="tag${extraClass ? ` ${extraClass}` : ""}">${escapeHtml(text)}</span>` : "";
+}
+
+const TAG_GROUP_ORDER = [
+  "技术标签",
+  "应用标签",
+  "产业标签",
+  "合作标签",
+  "地区标签",
+  "成熟度标签",
+  "关键词",
+];
+
+function normalizeTagValues(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  }
+  const text = String(value ?? "").trim();
+  return text ? [text] : [];
+}
+
+function collectTagGroups(payload) {
+  return TAG_GROUP_ORDER.map((label) => ({
+    label,
+    values: normalizeTagValues(payload?.[label]),
+  })).filter((group) => group.values.length);
+}
+
+function flattenTagValues(payload, limit = 0) {
+  const seen = new Set();
+  const flat = [];
+  collectTagGroups(payload).forEach((group) => {
+    group.values.forEach((value) => {
+      if (!seen.has(value)) {
+        seen.add(value);
+        flat.push(value);
+      }
+    });
+  });
+  return limit > 0 ? flat.slice(0, limit) : flat;
+}
+
+function renderResultMeta(meta = state.matchMeta) {
+  const box = $("#result-meta");
+  if (!box) return;
+  const tags = meta?.structured_tags || meta?.tag_extraction?.merged_tags || {};
+  const groups = collectTagGroups(tags);
+  const sourceTags = meta?.used_ai
+    ? ["AI标签抽取", "扩大候选召回", "DeepSeek精排"]
+    : meta?.tag_extraction?.used_ai
+      ? ["AI标签抽取", "扩大候选召回", "规则排序"]
+      : ["本地标签抽取", "扩大候选召回", "规则排序"];
+  const message =
+    meta?.message ||
+    (meta?.used_ai
+      ? "系统会先抽取标准标签，再扩大候选需求范围，最后结合 DeepSeek 做解释型精排。"
+      : "系统已用本地规则抽取标签，并基于扩大召回结果完成快速排序。");
+  if (!groups.length && !message) {
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="result-meta-card">
+      <div class="result-meta-head">
+        <div>
+          <h3>本次识别标签</h3>
+          <p>${escapeHtml(message)}</p>
+        </div>
+        <div class="tags meta-source-tags">
+          ${sourceTags.map((item) => tag(item, "meta-tag")).join("")}
+        </div>
+      </div>
+      ${
+        groups.length
+          ? `
+            <div class="tag-group-grid">
+              ${groups
+                .map(
+                  (group) => `
+                    <div class="tag-group">
+                      <div class="tag-group-label">${escapeHtml(group.label)}</div>
+                      <div class="tags compact-tags">
+                        ${group.values.map((value) => tag(value, "soft-tag")).join("")}
+                      </div>
+                    </div>
+                  `,
+                )
+                .join("")}
+            </div>
+          `
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderMatchedTagSummary(item) {
+  const matched = flattenTagValues(item?.matched_tags, 8);
+  if (!matched.length) return "";
+  return `
+    <div class="match-tag-row">
+      <span class="match-tag-label">命中标签</span>
+      <div class="tags compact-tags">
+        ${matched.map((value) => tag(value, "match-tag")).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function scoreLevel(score) {
+
   const value = Number(score || 0);
   if (value >= 90) return "excellent";
   if (value >= 80) return "high";
@@ -221,12 +338,14 @@ function renderResults(results) {
   const status = $("#result-status");
   const list = $("#result-list");
   if (!results.length) {
+    renderResultMeta({});
     status.textContent = "暂未找到匹配需求，可以补充技术领域、应用场景或技术摘要后重试。";
     status.style.display = "block";
     list.innerHTML = "";
     return;
   }
   status.style.display = "none";
+  renderResultMeta();
   list.innerHTML = results
     .map((item, index) => {
       const dims = item.dimensions || {};
@@ -254,6 +373,7 @@ function renderResults(results) {
             ${scoreBar("产业方向", dims["产业方向"])}
             ${scoreBar("成熟度", dims["成熟度"])}
           </div>
+          ${renderMatchedTagSummary(item)}
           <div class="reason">${escapeHtml(item.reason)}</div>
           <div class="suggestion">${escapeHtml(item.suggestion)}</div>
           <div class="top-actions left">
@@ -270,6 +390,8 @@ function renderResults(results) {
 }
 
 function scoreBar(name, value = 0) {
+
+
   const safe = Math.max(0, Math.min(100, Number(value || 0)));
   return `
     <div class="score-bar">

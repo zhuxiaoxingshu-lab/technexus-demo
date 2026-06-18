@@ -27,6 +27,10 @@ Page({
       match_mode: this.data.matchMode,
       client_source: "微信小程序"
     };
+    if (!String(payload.name || "").trim() || !String(payload.phone || "").trim() || !String(payload.company || "").trim()) {
+      wx.showToast({ title: "姓名、手机号、单位必填", icon: "none" });
+      return;
+    }
     if (!hasUsefulContent(payload)) {
       wx.showToast({ title: "请至少填写一项成果信息", icon: "none" });
       return;

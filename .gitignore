@@ -3,3 +3,5 @@ technexus_data/
 technexus_local_preview.err.log
 technexus_local_preview.out.log
 initial_admin_password.txt
+__pycache__/
+*.pyc

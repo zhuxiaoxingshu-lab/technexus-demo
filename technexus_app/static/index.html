@@ -20,6 +20,7 @@
       </div>
       <nav class="nav" aria-label="主导航">
         <button class="active" data-view="home" title="首页"><i data-lucide="home"></i><span>工作台</span></button>
+        <button data-view="demands" title="需求大厅"><i data-lucide="library-big"></i><span>需求大厅</span></button>
         <button data-view="submit" title="成果提交"><i data-lucide="file-plus-2"></i><span>成果提交</span></button>
         <button data-view="results" title="匹配结果"><i data-lucide="scan-search"></i><span>匹配结果</span></button>
         <button data-view="intent" title="合作意向"><i data-lucide="handshake"></i><span>合作意向</span></button>
@@ -202,12 +203,39 @@
           </div>
         </section>
 
+        <section class="view" id="demands">
+          <div class="band demand-library-shell">
+            <div class="band-header">
+              <div>
+                <h2>江苏技术需求大厅</h2>
+                <p>公开展示部分已入库技术需求及发布方；精准查找请提交技术成果，由 AI 完成匹配。</p>
+              </div>
+              <span class="library-count">共 <strong id="public-demand-count">-</strong> 条</span>
+            </div>
+            <div class="band-body">
+              <div class="demand-library-guide">
+                <div>
+                  <strong>想快速找到适合你的需求？</strong>
+                  <span>不要逐条翻库，提交成果后让 AI 从完整需求库中召回并精排。</span>
+                </div>
+                <button class="btn primary" data-view="submit"><i data-lucide="sparkles"></i>AI匹配我的成果</button>
+              </div>
+              <div id="public-demand-list" class="public-demand-grid">
+                <div class="empty-state">正在读取技术需求...</div>
+              </div>
+              <div class="library-more">
+                <button class="btn ghost" id="public-demand-more"><i data-lucide="chevrons-down"></i>加载更多</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section class="view" id="submit">
           <div class="band">
             <div class="band-header">
               <div>
                 <h2>技术成果提交</h2>
-                <p>字段都不是必填，但写得越清楚，系统越容易找到真正适合的需求。</p>
+                <p>联系人信息为必填；技术资料写得越清楚，系统越容易找到真正适合的需求。</p>
               </div>
               <button class="btn primary" id="submit-match"><i data-lucide="sparkles"></i>开始AI智能匹配</button>
             </div>
@@ -225,6 +253,19 @@
                 </button>
               </div>
               <form id="submission-form" class="form-grid">
+                <label>
+                  姓名
+                  <input name="name" autocomplete="name" placeholder="请输入联系人姓名" required />
+                </label>
+                <label>
+                  手机号
+                  <input name="phone" inputmode="tel" autocomplete="tel" placeholder="用于平台人工联系" required />
+                </label>
+                <label>
+                  单位
+                  <input name="company" autocomplete="organization" placeholder="请输入单位名称" required />
+                </label>
+                <p class="form-note full">联系人信息仅用于技术匹配、人工审核和后续撮合，不会在平台前台公开展示。</p>
                 <label>
                   成果名称
                   <input name="title" placeholder="例如：高导热石墨烯复合散热材料" />
@@ -522,7 +563,7 @@
               </div>
               <div class="band-body">
                 <div class="match-toolbar">
-                  <input id="match-keyword" placeholder="搜索成果名称、技术领域、摘要、匹配需求" />
+                  <input id="match-keyword" placeholder="搜索姓名、手机号、单位、成果或匹配需求" />
                   <button class="btn" id="match-filter"><i data-lucide="search"></i>筛选</button>
                   <button class="btn ghost" id="match-clear-filter"><i data-lucide="x"></i>清空</button>
                 </div>
@@ -532,16 +573,19 @@
                       <tr>
                         <th>时间</th>
                         <th>匹配方式</th>
+                        <th>联系人</th>
                         <th>用户输入</th>
                         <th>技术摘要</th>
                         <th>匹配到的需求</th>
+                        <th>操作</th>
                       </tr>
                     </thead>
                     <tbody id="match-table">
-                      <tr><td colspan="5">暂无匹配记录</td></tr>
+                      <tr><td colspan="7">暂无匹配记录</td></tr>
                     </tbody>
                   </table>
                 </div>
+                <div id="match-detail" class="match-detail empty-state">选择一条匹配记录，查看需求方信息并维护对接进度。</div>
               </div>
             </div>
             <div class="admin-layout">

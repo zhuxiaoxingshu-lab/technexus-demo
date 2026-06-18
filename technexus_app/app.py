@@ -56,6 +56,19 @@ INTENT_STATUSES = [
     "合作成功",
     "合作失败",
 ]
+MATCH_FOLLOWUP_STATUSES = [
+    "待联系成果方",
+    "已联系成果方",
+    "待联系需求方",
+    "已联系需求方",
+    "双方沟通中",
+    "已安排会议",
+    "已发送材料",
+    "已签约",
+    "已成交",
+    "暂停跟进",
+    "不再跟进",
+]
 
 CONTACT_FIELDS = {"联系方式", "详情页链接"}
 DEMAND_FIELDS = [
@@ -550,10 +563,16 @@ class DemandStore:
         return None
 
     def search(self, keyword: str = "", limit: int = 50) -> list[dict]:
+        items, _ = self.search_page(keyword=keyword, offset=0, limit=limit)
+        return items
+
+    def search_page(self, keyword: str = "", offset: int = 0, limit: int = 24) -> tuple[list[dict], int]:
         self.refresh_if_changed()
         keyword = clean_text(keyword)
+        offset = max(0, int(offset or 0))
+        limit = max(1, min(60, int(limit or 24)))
         if not keyword:
-            rows = self.demands[:limit]
+            matched_rows = self.demands
         else:
             keyword_tokens = tokenize(keyword)
             scored = []
@@ -564,8 +583,10 @@ class DemandStore:
                 if score > 0:
                     scored.append((score, demand))
             scored.sort(key=lambda item: item[0], reverse=True)
-            rows = [demand for _, demand in scored[:limit]]
-        return [sanitize_demand(row, include_detail=True) for row in rows]
+            matched_rows = [demand for _, demand in scored]
+        total = len(matched_rows)
+        rows = matched_rows[offset : offset + limit]
+        return [sanitize_demand(row, include_detail=True) for row in rows], total
 
 
 def prepare_demand_row(item: dict) -> dict:
@@ -576,7 +597,7 @@ def prepare_demand_row(item: dict) -> dict:
         return {}
     search_text = " ".join(
         cleaned.get(field, "")
-        for field in ("需求名称", "技术领域", "需求类型", "所在地区", "需求详情", "合作方式")
+        for field in ("需求名称", "技术领域", "需求类型", "所在地区", "需求详情", "合作方式", "发布者")
     )
     cleaned["_search_text"] = " ".join([search_text, tag_text]).strip()
     cleaned["_tokens"] = tokenize(cleaned["_search_text"])
@@ -613,9 +634,23 @@ def sanitize_demand(demand: dict, *, include_detail: bool = False) -> dict:
         "tech_field": demand.get("技术领域", ""),
         "demand_type": demand.get("需求类型", ""),
         "region": demand.get("所在地区", ""),
+        "publisher": demand.get("发布者", ""),
     }
     if include_detail:
         item["detail_summary"] = clip(demand.get("需求详情", ""), 260)
+    return item
+
+
+def admin_demand_payload(demand: dict) -> dict:
+    item = sanitize_demand(demand, include_detail=True)
+    item.update(
+        {
+            "publisher": clean_text(demand.get("发布者")),
+            "contact": clean_text(demand.get("联系方式")),
+            "source_url": clean_text(demand.get("详情页链接")),
+            "full_detail": clean_text(demand.get("需求详情")),
+        }
+    )
     return item
 
 
@@ -1544,6 +1579,19 @@ def init_database() -> None:
         created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS match_followups (
+        followup_id TEXT PRIMARY KEY,
+        match_id TEXT NOT NULL,
+        submission_id TEXT,
+        demand_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        contact_note TEXT DEFAULT '',
+        project_progress TEXT DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (match_id, demand_id)
+    );
+
     CREATE TABLE IF NOT EXISTS demands (
         demand_id TEXT PRIMARY KEY,
         demand_no TEXT,
@@ -1556,6 +1604,7 @@ def init_database() -> None:
     );
 
     CREATE INDEX IF NOT EXISTS idx_demands_updated_at ON demands (updated_at);
+    CREATE INDEX IF NOT EXISTS idx_match_followups_match_id ON match_followups (match_id);
     """
     with db_connect() as conn:
         if using_postgres():
@@ -1882,9 +1931,13 @@ def save_intent(intent: dict) -> None:
 def decode_json_field(value: object, default: object) -> object:
     if not value:
         return default
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        value = bytes(value).decode("utf-8", errors="replace")
     try:
         return json.loads(str(value))
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, TypeError, ValueError):
         return default
 
 
@@ -1905,6 +1958,9 @@ def match_search_text(item: dict) -> str:
         item.get("created_at"),
         item.get("match_mode_label"),
         item.get("ai_message"),
+        submission.get("name"),
+        submission.get("phone"),
+        submission.get("company"),
         submission.get("title"),
         submission.get("tech_field"),
         submission.get("region"),
@@ -1968,6 +2024,134 @@ def list_matches(limit: int = 120, keyword: str = "") -> list[dict]:
         if limit and len(items) >= limit:
             break
     return items
+
+
+def get_match_record(match_id: str) -> dict:
+    match_id = clean_text(match_id)
+    with db_connect() as conn:
+        row = db_execute(
+            conn,
+            """
+            SELECT match_id, submission_id, created_at, ai_meta_json, results_json, submission_json
+            FROM matches
+            WHERE match_id = ?
+            """,
+            (match_id,),
+        ).fetchone()
+    if row is None:
+        raise KeyError("未找到匹配记录")
+    item = dict(row)
+    item["ai_meta"] = decode_json_field(item.pop("ai_meta_json", ""), {})
+    item["results"] = decode_json_field(item.pop("results_json", ""), [])
+    item["submission"] = decode_json_field(item.pop("submission_json", ""), {})
+    if not isinstance(item["ai_meta"], dict):
+        item["ai_meta"] = {}
+    if not isinstance(item["results"], list):
+        item["results"] = []
+    if not isinstance(item["submission"], dict):
+        item["submission"] = {}
+    item["match_mode_label"] = match_mode_label(item["ai_meta"])
+    item["ai_message"] = clean_text(item["ai_meta"].get("message"))
+    return item
+
+
+def list_match_followups(match_id: str) -> dict[str, dict]:
+    with db_connect() as conn:
+        rows = db_execute(
+            conn,
+            """
+            SELECT followup_id, match_id, submission_id, demand_id, status,
+                   contact_note, project_progress, created_at, updated_at
+            FROM match_followups
+            WHERE match_id = ?
+            """,
+            (clean_text(match_id),),
+        ).fetchall()
+    return {clean_text(dict(row).get("demand_id")): dict(row) for row in rows}
+
+
+def get_match_detail(store: DemandStore, match_id: str) -> dict:
+    item = get_match_record(match_id)
+    followups = list_match_followups(item["match_id"])
+    enriched_results: list[dict] = []
+    for result in item.get("results") or []:
+        if not isinstance(result, dict):
+            continue
+        demand_id = clean_text(result.get("demand_id"))
+        raw_demand = store.by_id(demand_id) or {}
+        private = admin_demand_payload(raw_demand) if raw_demand else {}
+        enriched_results.append(
+            {
+                **result,
+                **private,
+                "demand_id": demand_id,
+                "followup": followups.get(demand_id)
+                or {
+                    "match_id": item["match_id"],
+                    "submission_id": item.get("submission_id", ""),
+                    "demand_id": demand_id,
+                    "status": MATCH_FOLLOWUP_STATUSES[0],
+                    "contact_note": "",
+                    "project_progress": "",
+                    "created_at": "",
+                    "updated_at": "",
+                },
+            }
+        )
+    item["results"] = enriched_results
+    return item
+
+
+def save_match_followup(
+    store: DemandStore,
+    match_id: str,
+    demand_id: str,
+    status: str,
+    contact_note: str = "",
+    project_progress: str = "",
+) -> dict:
+    match_id = clean_text(match_id)
+    demand_id = clean_text(demand_id)
+    status = clean_text(status)
+    if status not in MATCH_FOLLOWUP_STATUSES:
+        raise ValueError("请选择有效的对接状态")
+    match_record = get_match_record(match_id)
+    candidate_ids = {
+        clean_text(result.get("demand_id"))
+        for result in (match_record.get("results") or [])
+        if isinstance(result, dict)
+    }
+    if not demand_id or demand_id not in candidate_ids:
+        raise ValueError("该需求不属于当前匹配记录")
+    timestamp = now_iso()
+    followup_id = hashlib.sha256(f"{match_id}:{demand_id}".encode("utf-8")).hexdigest()[:32]
+    with db_connect() as conn:
+        db_execute(
+            conn,
+            """
+            INSERT INTO match_followups
+                (followup_id, match_id, submission_id, demand_id, status,
+                 contact_note, project_progress, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (match_id, demand_id) DO UPDATE SET
+                status = excluded.status,
+                contact_note = excluded.contact_note,
+                project_progress = excluded.project_progress,
+                updated_at = excluded.updated_at
+            """,
+            (
+                followup_id,
+                match_id,
+                clean_text(match_record.get("submission_id")),
+                demand_id,
+                status,
+                clean_text(contact_note),
+                clean_text(project_progress),
+                timestamp,
+                timestamp,
+            ),
+        )
+    return get_match_detail(store, match_id)
 
 
 def list_intents(limit: int = 200, status: str = "", keyword: str = "") -> list[dict]:
@@ -2392,6 +2576,17 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 }
             )
             return
+        if parsed.path == "/api/public/demands":
+            query = parse_qs(parsed.query)
+            try:
+                offset = max(0, int(query.get("offset", ["0"])[0] or 0))
+                limit = max(1, min(60, int(query.get("limit", ["24"])[0] or 24)))
+            except ValueError:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, "分页参数不正确")
+                return
+            items, total = self.store.search_page(keyword="", offset=offset, limit=limit)
+            self.send_json({"items": items, "total": total, "offset": offset, "limit": limit})
+            return
         if parsed.path == "/api/intents":
             if not self.require_admin():
                 return
@@ -2439,6 +2634,17 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             keyword = query.get("keyword", [""])[0]
             self.send_json({"items": list_matches(120, keyword=keyword)})
             return
+        if parsed.path == "/api/matches/detail":
+            if not self.require_admin():
+                return
+            query = parse_qs(parsed.query)
+            try:
+                match = get_match_detail(self.store, query.get("match_id", [""])[0])
+            except KeyError as exc:
+                self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+                return
+            self.send_json({"match": match, "statuses": MATCH_FOLLOWUP_STATUSES})
+            return
         if parsed.path == "/api/demands":
             if not self.require_admin():
                 return
@@ -2482,6 +2688,10 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 for k, v in payload.items()
                 if clean_text(k) not in {"match_mode", "_match_mode"}
             }
+            if clean_text(submission.get("client_source")) in {"网页端", "微信小程序"}:
+                if not all(clean_text(submission.get(field)) for field in ("name", "phone", "company")):
+                    self.send_error_json(HTTPStatus.BAD_REQUEST, "请填写姓名、手机号和单位，便于平台后续联系")
+                    return
             submission_id = uuid.uuid4().hex
             record = {
                 "submission_id": submission_id,
@@ -2613,6 +2823,28 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
                 return
             self.send_json({"ok": True, "intent": intent, "items": list_intents(200)})
+            return
+
+        if parsed.path == "/api/matches/followup":
+            if not self.require_admin():
+                return
+            payload = self.read_json()
+            try:
+                match = save_match_followup(
+                    self.store,
+                    clean_text(payload.get("match_id")),
+                    clean_text(payload.get("demand_id")),
+                    clean_text(payload.get("status")),
+                    clean_text(payload.get("contact_note")),
+                    clean_text(payload.get("project_progress")),
+                )
+            except KeyError as exc:
+                self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+                return
+            except ValueError as exc:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            self.send_json({"ok": True, "match": match, "statuses": MATCH_FOLLOWUP_STATUSES})
             return
 
         self.send_error_json(HTTPStatus.NOT_FOUND, "未找到接口")

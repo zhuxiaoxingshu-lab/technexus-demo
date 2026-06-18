@@ -17,7 +17,8 @@ Page({
     queryCode: "",
     loading: false,
     progress: null,
-    qrcode: "/assets/wechat-official-qrcode.jpg"
+    qrcode: "/assets/wechat-official-qrcode.jpg",
+    avatar: "/assets/wechat-official-avatar.jpg"
   },
 
   onLoad(options) {

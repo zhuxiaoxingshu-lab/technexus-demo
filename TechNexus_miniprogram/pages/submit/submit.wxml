@@ -1,22 +1,64 @@
 <view class="page">
-  <view class="card">
-    <text class="section-title">选择匹配方式</text>
-    <view class="mode-row">
-      <view class="mode-card {{matchMode == 'ai' ? 'active' : ''}}" data-mode="ai" bindtap="chooseMode">
-        <text class="mode-title">AI智能匹配</text>
-        <text class="muted">调用 DeepSeek API 精排并生成理由</text>
-      </view>
-      <view class="mode-card {{matchMode == 'quick' ? 'active' : ''}}" data-mode="quick" bindtap="chooseMode">
-        <text class="mode-title">快速匹配</text>
-        <text class="muted">不调用 API，先看大致方向</text>
+  <view class="hero-shell compact">
+    <image class="hero-image" src="/assets/suzhou_lab_cleanroom.jpg" mode="aspectFill" />
+    <view class="hero-mask"></view>
+    <view class="hero-content">
+      <view>
+        <text class="eyebrow">技术成果提交</text>
+        <view class="hero-main">
+          <text class="hero-title">把成果说清楚，系统才更容易找到真正适合的需求</text>
+          <text class="hero-copy">联系人信息为必填；成果摘要、应用场景、优势和成熟度写得越具体，快速匹配和 AI 智能匹配都会更准。</text>
+        </view>
       </view>
     </view>
-    <view class="hint">字段不必全部填写，但成果摘要、应用场景和技术优势越清楚，匹配越精准。</view>
-    <view class="hint subtle">点击开始匹配后，平台后台会保存本次输入内容作为潜在线索，仅用于人工审核和后续撮合。</view>
+  </view>
+
+  <view class="band">
+    <view class="band-header">
+      <text class="section-title">选择匹配方式</text>
+      <text class="muted">你可以先看一个更快的本地规则结果，也可以直接走 AI 精排。</text>
+    </view>
+    <view class="band-body">
+      <view class="mode-row">
+        <view class="mode-card {{matchMode == 'ai' ? 'active' : ''}}" data-mode="ai" bindtap="chooseMode">
+          <text class="mode-title">AI 智能匹配</text>
+          <text class="muted">调用 DeepSeek API 精排候选需求并生成理由。</text>
+        </view>
+        <view class="mode-card {{matchMode == 'quick' ? 'active' : ''}}" data-mode="quick" bindtap="chooseMode">
+          <text class="mode-title">快速匹配</text>
+          <text class="muted">不调用 API，先看本地规则筛出的方向。</text>
+        </view>
+      </view>
+      <view class="hint">点击开始匹配后，平台后台会保存本次输入内容，作为潜在线索供人工审核和后续撮合使用。</view>
+    </view>
   </view>
 
   <form bindsubmit="submitForm">
-    <view class="card">
+    <view class="band">
+      <view class="band-header">
+        <text class="section-title">联系人信息</text>
+        <text class="muted">用于平台人工审核和后续撮合，不会在前台对外展示。</text>
+      </view>
+      <label class="field">
+        <text class="field-label">姓名</text>
+        <input class="input" name="name" placeholder="必填" />
+      </label>
+      <label class="field">
+        <text class="field-label">手机号</text>
+        <input class="input" name="phone" type="number" placeholder="必填，用于平台人工联系" />
+      </label>
+      <label class="field">
+        <text class="field-label">单位</text>
+        <input class="input" name="company" placeholder="必填" />
+      </label>
+    </view>
+
+    <view class="band">
+      <view class="band-header">
+        <text class="section-title">基础信息</text>
+        <text class="muted">先告诉我们这项成果是什么、处于什么阶段、希望往哪里对接。</text>
+      </view>
+
       <label class="field">
         <text class="field-label">成果名称</text>
         <input class="input" name="title" placeholder="例如：高导热石墨烯复合散热材料" />
@@ -29,6 +71,26 @@
         <text class="field-label">所在地区</text>
         <input class="input" name="region" placeholder="例如：江苏省 / 无锡市" />
       </label>
+      <label class="field">
+        <text class="field-label">当前成熟度</text>
+        <input class="input" name="maturity" placeholder="例如：实验室阶段 / 小试 / 中试 / 已量产" />
+      </label>
+      <label class="field">
+        <text class="field-label">知识产权情况</text>
+        <input class="input" name="ip_status" placeholder="例如：专利 / 软著 / 技术秘密 / 暂无" />
+      </label>
+      <label class="field">
+        <text class="field-label">期望合作方式</text>
+        <input class="input" name="cooperation" placeholder="例如：技术转让 / 合作开发 / 技术服务" />
+      </label>
+    </view>
+
+    <view class="band">
+      <view class="band-header">
+        <text class="section-title">技术描述</text>
+        <text class="muted">这一部分越具体，后面的理由解释和人工撮合效率就越高。</text>
+      </view>
+
       <label class="field">
         <text class="field-label">应用场景</text>
         <textarea class="textarea" name="application_scene" placeholder="这项成果主要用在哪些行业、产品或生产环节？"></textarea>
@@ -46,22 +108,19 @@
         <textarea class="textarea" name="problem" placeholder="希望帮助企业解决什么痛点？"></textarea>
       </label>
       <label class="field">
-        <text class="field-label">当前成熟度</text>
-        <input class="input" name="maturity" placeholder="例如：实验室阶段 / 小试 / 中试 / 已量产" />
-      </label>
-      <label class="field">
-        <text class="field-label">知识产权情况</text>
-        <input class="input" name="ip_status" placeholder="例如：专利 / 软著 / 技术秘密 / 暂无" />
-      </label>
-      <label class="field">
-        <text class="field-label">期望合作方式</text>
-        <input class="input" name="cooperation" placeholder="例如：技术转让 / 合作开发 / 技术服务" />
-      </label>
-      <label class="field">
         <text class="field-label">补充说明 / 相关链接</text>
         <input class="input" name="extra_note" placeholder="可填写专利号、论文链接、产品网页、案例说明等。" />
       </label>
-      <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading}}">开始匹配</button>
+    </view>
+
+    <view class="band">
+      <view class="band-header">
+        <text class="section-title">提交前提醒</text>
+      </view>
+      <view class="soft-tip">前台不会展示需求方联系方式；如果匹配后你想继续推进，合作意向会进入后台，由平台人工审核、联系和撮合。</view>
+      <view class="actions">
+        <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading}}">开始匹配</button>
+      </view>
     </view>
   </form>
 </view>

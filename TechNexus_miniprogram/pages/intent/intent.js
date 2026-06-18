@@ -8,13 +8,26 @@ Page({
     loading: false,
     success: false,
     queryCode: "",
-    qrcode: "/assets/wechat-official-qrcode.jpg"
+    contact: {
+      name: "",
+      phone: "",
+      company: ""
+    },
+    qrcode: "/assets/wechat-official-qrcode.jpg",
+    avatar: "/assets/wechat-official-avatar.jpg"
   },
 
   onShow() {
-    const selected = getApp().globalData.selectedResult;
+    const app = getApp();
+    const selected = app.globalData.selectedResult;
+    const submission = app.globalData.submission || {};
     this.setData({
-      selected: selected ? prepareResult(selected, 0) : null
+      selected: selected ? prepareResult(selected, 0) : null,
+      contact: {
+        name: submission.name || "",
+        phone: submission.phone || "",
+        company: submission.company || ""
+      }
     });
   },
 
@@ -35,7 +48,12 @@ Page({
       wx.showToast({ title: "请先阅读并同意协议", icon: "none" });
       return;
     }
-    if (!form.name || !form.phone || !form.company) {
+    const contact = {
+      name: form.name || app.globalData.submission.name || "",
+      phone: form.phone || app.globalData.submission.phone || "",
+      company: form.company || app.globalData.submission.company || ""
+    };
+    if (!contact.name || !contact.phone || !contact.company) {
       wx.showToast({ title: "姓名、手机号、单位必填", icon: "none" });
       return;
     }
@@ -44,9 +62,9 @@ Page({
       submission_id: app.globalData.submissionId,
       agreement: true,
       contact: {
-        name: form.name,
-        phone: form.phone,
-        company: form.company,
+        name: contact.name,
+        phone: contact.phone,
+        company: contact.company,
         technology_summary: app.globalData.submission.summary || app.globalData.submission.title || ""
       },
       message: form.message || "",

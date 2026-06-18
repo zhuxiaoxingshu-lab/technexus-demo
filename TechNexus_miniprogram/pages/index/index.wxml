@@ -1,30 +1,146 @@
 <view class="page">
-  <view class="card">
-    <view class="brand-row">
-      <image class="brand-logo" src="{{avatar}}" mode="aspectFit" />
+  <view class="hero-shell">
+    <image class="hero-image" src="{{heroImage}}" mode="aspectFill" />
+    <view class="hero-mask"></view>
+    <view class="hero-content">
       <view>
-        <text class="brand-name">TechNexus技术经理人</text>
-        <text class="brand-sub">技术成果找需求</text>
+        <text class="eyebrow">江苏产业需求库 · 南京 / 苏州 / 无锡 / 盐城</text>
+        <view class="hero-main">
+          <text class="hero-title">把技术成果放进江苏产业场景里，找到真正可能成交的需求</text>
+          <text class="hero-copy">TechNexus 基于 JSTEC 真实技术需求库进行快速匹配和 AI 智能匹配。前台不展示需求方联系方式，合作意向统一进入后台人工审核与撮合。</text>
+        </view>
+        <view class="hero-actions">
+          <button class="btn primary" bindtap="goSubmit">开始匹配</button>
+          <button class="btn ghost" bindtap="goProgress">查询进度</button>
+        </view>
+      </view>
+
+      <view class="hero-kpis">
+        <view class="hero-kpi">
+          <strong>{{stats.demand_count}}</strong>
+          <span>已入库技术需求</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>5条</strong>
+          <span>单次返回候选需求</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>3日</strong>
+          <span>承诺初步反馈</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>5%</strong>
+          <span>成交后服务费</span>
+        </view>
       </view>
     </view>
-    <view class="title">提交技术成果，匹配可对接的企业技术需求</view>
-    <view class="muted">基于 JSTEC 真实需求库进行快速匹配和 AI 智能匹配。前台不展示需求方联系方式，合作意向统一进入后台人工审核。</view>
-    <view class="actions">
-      <button class="btn primary" bindtap="goSubmit">开始匹配</button>
-      <button class="btn ghost" bindtap="goProgress">查询进度</button>
+  </view>
+
+  <view class="insight-stack">
+    <view class="media-card">
+      <image class="media-cover" src="{{labImage}}" mode="aspectFill" />
+      <view class="media-mask"></view>
+      <view class="media-copy">
+        <strong>科研成果与产业需求双向筛选</strong>
+        <span>适合高校、科研院所、技术服务机构和创新型企业提交成果，先匹配，再进入人工撮合。</span>
+      </view>
     </view>
-    <view class="stats">
-      <view class="stat">
-        <text class="stat-number">{{stats.demand_count}}</text>
-        <text>已入库需求</text>
+
+    <view class="metric-grid">
+      <view class="metric-card">
+        <strong>100</strong>
+        <span>匹配评分总分</span>
       </view>
-      <view class="stat">
-        <text class="stat-number">5%</text>
-        <text>成交后服务费</text>
+      <view class="metric-card">
+        <strong>{{stats.ai_mode}}</strong>
+        <span>当前匹配模式</span>
       </view>
-      <view class="stat">
-        <text class="stat-number">{{stats.ai_mode}}</text>
-        <text>匹配模式</text>
+      <view class="metric-card">
+        <strong>隐藏</strong>
+        <span>需求方联系方式</span>
+      </view>
+      <view class="metric-card">
+        <strong>查询码</strong>
+        <span>全程追踪对接进度</span>
+      </view>
+    </view>
+
+    <view class="media-card">
+      <image class="media-cover" src="{{factoryImage}}" mode="aspectFill" />
+      <view class="media-mask"></view>
+      <view class="media-copy">
+        <strong>围绕江苏产业场景做真实撮合</strong>
+        <span>不是只给分数，而是把可对接项目送入后台审核、联系和跟进流程。</span>
+      </view>
+    </view>
+  </view>
+
+  <view class="band">
+    <view class="band-header">
+      <text class="section-title">技术成果找需求</text>
+      <text class="muted">首页先让来访者理解平台怎么工作，再进入完整表单提交成果。</text>
+    </view>
+    <view class="band-body">
+      <view class="quick-preview">
+        <view class="sample-field">
+          <text class="field-label">成果名称</text>
+          <text class="sample-value">高导热石墨烯复合散热材料</text>
+        </view>
+        <view class="sample-field">
+          <text class="field-label">技术领域</text>
+          <text class="sample-value">新材料</text>
+        </view>
+        <view class="sample-field">
+          <text class="field-label">技术成果简介</text>
+          <text class="sample-value">用于电子器件热管理的高导热复合材料，具备较好的界面结合、加工稳定性和规模化制备潜力。</text>
+        </view>
+      </view>
+
+      <view class="mode-row">
+        <view class="mode-card active">
+          <text class="mode-title">AI 智能匹配</text>
+          <text class="muted">调用 DeepSeek API 精排并生成更细的匹配理由。</text>
+        </view>
+        <view class="mode-card">
+          <text class="mode-title">快速匹配</text>
+          <text class="muted">不调用 API，仅靠本地规则先看大致方向。</text>
+        </view>
+      </view>
+
+      <view class="soft-tip">点击开始匹配后，平台后台会保存本次输入内容，作为潜在线索供人工审核和后续撮合使用。</view>
+    </view>
+  </view>
+
+  <view class="band">
+    <view class="band-header">
+      <text class="section-title">你将看到什么</text>
+      <text class="muted">返回 5 条候选需求，展示匹配分、理由和下一步建议。</text>
+    </view>
+    <view class="preview-list">
+      <view wx:for="{{previewResults}}" wx:key="name" class="preview-item">
+        <view class="preview-main">
+          <strong>{{item.name}}</strong>
+          <view class="tags">
+            <text wx:for="{{item.tags}}" wx:key="*this" wx:for-item="tag" class="tag">{{tag}}</text>
+          </view>
+        </view>
+        <view class="preview-score {{item.level}}">{{item.score}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="band">
+    <view class="band-header">
+      <text class="section-title">平台工作方式</text>
+      <text class="muted">不是只给结果，而是帮你持续推进到对接。</text>
+    </view>
+    <view class="process-list">
+      <view wx:for="{{processSteps}}" wx:key="index" class="process-step">
+        <view class="step-index">{{item.index}}</view>
+        <view class="step-copy">
+          <strong>{{item.title}}</strong>
+          <span>{{item.copy}}</span>
+        </view>
       </view>
     </view>
   </view>
@@ -42,14 +158,5 @@
       <text class="muted">获取技术撮合进展、项目更新和后续小程序入口。点击可放大二维码。</text>
     </view>
     <image class="official-qr" src="{{qrcode}}" mode="aspectFit" />
-  </view>
-
-  <view class="card">
-    <text class="section-title">服务流程</text>
-    <view class="detail-row"><text>1</text><text>提交技术成果与应用场景</text></view>
-    <view class="detail-row"><text>2</text><text>系统返回 5 条以内匹配需求</text></view>
-    <view class="detail-row"><text>3</text><text>确认中介协议并提交合作意向</text></view>
-    <view class="detail-row"><text>4</text><text>平台在 3 个工作日内初步审核或联系</text></view>
-    <view class="detail-row"><text>5</text><text>人工联系双方，推动线上会议、协议和成交</text></view>
   </view>
 </view>

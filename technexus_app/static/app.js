@@ -6,6 +6,10 @@ const state = {
   selectedResult: null,
   matchMode: "ai",
   currentIntent: null,
+  currentMatch: null,
+  matchFollowupStatuses: [],
+  publicDemandOffset: 0,
+  publicDemandTotal: 0,
   adminAuthenticated: false,
   adminUsername: "",
   adminStatuses: [],
@@ -20,7 +24,8 @@ const state = {
 
 const titleMap = {
   home: ["技术成果找需求", "提交技术成果，AI 匹配真实技术需求，合作意向由平台人工审核撮合。"],
-  submit: ["成果提交", "字段都不是必填，写得越详细，匹配越精准。"],
+  demands: ["技术需求大厅", "浏览真实需求样本，提交成果后由 AI 从完整需求库精准匹配。"],
+  submit: ["成果提交", "填写联系人信息与技术资料，开始精准匹配。"],
   results: ["匹配结果", "展示匹配分数、理由和合作建议，不展示需求方联系方式。"],
   intent: ["合作意向", "确认中介服务协议后，线索进入后台审核。"],
   progress: ["进度查询", "输入查询码，查看技术撮合对接进度。"],
@@ -42,6 +47,15 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function safeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
 }
 
 function toast(message) {
@@ -70,6 +84,9 @@ function showView(id) {
       setAdminView(false, "");
     }
     loadAdmin();
+  }
+  if (id === "demands" && !$("#public-demand-list").dataset.loaded) {
+    loadPublicDemands(true);
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -155,8 +172,13 @@ function setMatchMode(mode) {
 
 async function runMatch(payload, button) {
   const data = payload || formDataToObject($("#submission-form"));
+  const isFullSubmission = !payload;
+  if (isFullSubmission && (!data.name?.trim() || !data.phone?.trim() || !data.company?.trim())) {
+    toast("请填写姓名、手机号和单位");
+    return;
+  }
   data.match_mode = state.matchMode;
-  data.client_source = "网页端";
+  data.client_source = data.client_source || (isFullSubmission ? "网页端" : "网页端体验");
   state.submission = data;
   state.matchMeta = {};
   setButtonLoading(button, true, state.matchMode === "quick" ? "快速匹配中" : "AI匹配中");
@@ -358,6 +380,7 @@ function renderResults(results) {
               <div class="tags">
                 ${tag(item.tech_field)}
                 ${tag(item.demand_type)}
+                ${tag(item.publisher ? `发布方 ${item.publisher}` : "")}
                 ${tag(item.intended_price ? `意向投入 ${item.intended_price}` : "")}
                 ${tag(item.region)}
                 ${tag(item.cooperation_mode)}
@@ -403,8 +426,19 @@ function scoreBar(name, value = 0) {
 
 function selectResult(index) {
   state.selectedResult = state.results[index];
+  prefillIntentContact();
   renderSelectedDemand();
   showView("intent");
+}
+
+function prefillIntentContact() {
+  const form = $("#intent-form");
+  if (!form) return;
+  ["name", "phone", "company"].forEach((fieldName) => {
+    const field = form.elements[fieldName];
+    const value = String(state.submission[fieldName] || "").trim();
+    if (field && value && !field.value.trim()) field.value = value;
+  });
 }
 
 function renderSelectedDemand() {
@@ -439,7 +473,12 @@ async function submitIntent(button) {
     return;
   }
   const form = formDataToObject($("#intent-form"));
-  if (!form.name || !form.phone || !form.company) {
+  const contact = {
+    name: form.name || state.submission.name || "",
+    phone: form.phone || state.submission.phone || "",
+    company: form.company || state.submission.company || "",
+  };
+  if (!contact.name || !contact.phone || !contact.company) {
     toast("请填写姓名、手机号和单位");
     return;
   }
@@ -447,9 +486,7 @@ async function submitIntent(button) {
     submission_id: state.submissionId,
     agreement,
     contact: {
-      name: form.name || "",
-      phone: form.phone || "",
-      company: form.company || "",
+      ...contact,
       technology_summary: state.submission.summary || state.submission.title || "",
     },
     message: form.message || "",
@@ -553,6 +590,67 @@ async function loadStats() {
   }
 }
 
+function renderPublicDemandCard(item) {
+  return `
+    <article class="public-demand-card">
+      <div class="public-demand-head">
+        <div>
+          <span class="demand-number">${escapeHtml(item.demand_no || item.demand_id || "技术需求")}</span>
+          <h2>${escapeHtml(item.name || "未命名技术需求")}</h2>
+        </div>
+        ${item.intended_price ? `<span class="price-chip">意向投入 ${escapeHtml(item.intended_price)}</span>` : ""}
+      </div>
+      <div class="publisher-line"><i data-lucide="building-2"></i><span>发布方</span><strong>${escapeHtml(item.publisher || "暂未公开")}</strong></div>
+      <div class="tags">
+        ${tag(item.tech_field)}
+        ${tag(item.demand_type)}
+        ${tag(item.region)}
+        ${tag(item.cooperation_mode)}
+      </div>
+      <p>${escapeHtml(item.detail_summary || "暂无需求详情")}</p>
+      <div class="public-demand-foot">
+        <span><i data-lucide="shield-check"></i>联系方式由平台后台管理</span>
+        <button class="btn small" data-view="submit"><i data-lucide="sparkles"></i>提交成果匹配</button>
+      </div>
+    </article>
+  `;
+}
+
+async function loadPublicDemands(reset = false) {
+  const list = $("#public-demand-list");
+  const moreButton = $("#public-demand-more");
+  if (reset) {
+    state.publicDemandOffset = 0;
+    list.innerHTML = `<div class="empty-state">正在读取技术需求...</div>`;
+  }
+  setButtonLoading(moreButton, true, reset ? "读取中" : "加载中");
+  const params = new URLSearchParams({
+    offset: String(state.publicDemandOffset),
+    limit: "18",
+  });
+  try {
+    const response = await api(`/api/public/demands?${params.toString()}`);
+    const items = response.items || [];
+    state.publicDemandTotal = Number(response.total || 0);
+    state.publicDemandOffset += items.length;
+    $("#public-demand-count").textContent = state.publicDemandTotal.toLocaleString("zh-CN");
+    const cards = items.map(renderPublicDemandCard).join("");
+    if (reset) list.innerHTML = cards || `<div class="empty-state">没有找到符合条件的技术需求。</div>`;
+    else list.insertAdjacentHTML("beforeend", cards);
+    list.dataset.loaded = "1";
+    moreButton.hidden = state.publicDemandOffset >= state.publicDemandTotal;
+    $all('[data-view="submit"]', list).forEach((button) => {
+      button.addEventListener("click", () => showView("submit"));
+    });
+    refreshIcons();
+  } catch (error) {
+    if (reset) list.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    toast(error.message);
+  } finally {
+    setButtonLoading(moreButton, false);
+  }
+}
+
 async function loadAdmin() {
   try {
     const session = await api("/api/admin/session");
@@ -574,6 +672,9 @@ async function loadAdmin() {
     renderIntentTable(intents.items || []);
     renderMatchFilter();
     renderMatchTable(matches.items || []);
+    if (state.currentMatch?.match_id) {
+      await loadMatchDetail(state.currentMatch.match_id);
+    }
     if (!$("#demand-preview").dataset.loaded) {
       await loadDemandPreview();
     }
@@ -657,7 +758,10 @@ function resetAdminData() {
   $("#admin-match-count").textContent = "-";
   $("#admin-intent-count").textContent = "-";
   $("#admin-ai-mode").textContent = "-";
-  $("#match-table").innerHTML = `<tr><td colspan="5">登录后显示匹配记录</td></tr>`;
+  state.currentMatch = null;
+  $("#match-table").innerHTML = `<tr><td colspan="7">登录后显示匹配记录</td></tr>`;
+  $("#match-detail").className = "match-detail empty-state";
+  $("#match-detail").textContent = "登录后查看需求方信息和对接进度。";
   $("#intent-table").innerHTML = `<tr><td colspan="8">登录后显示合作意向</td></tr>`;
   $("#intent-detail").className = "intent-detail empty-state";
   $("#intent-detail").textContent = "登录后查看线索详情。";
@@ -700,7 +804,10 @@ async function logoutAdmin() {
   }
   setAdminView(false, "");
   $("#demand-preview").dataset.loaded = "";
-  $("#match-table").innerHTML = `<tr><td colspan="5">请先登录后台</td></tr>`;
+  state.currentMatch = null;
+  $("#match-table").innerHTML = `<tr><td colspan="7">请先登录后台</td></tr>`;
+  $("#match-detail").className = "match-detail empty-state";
+  $("#match-detail").textContent = "请选择一条匹配记录查看详情。";
   $("#intent-table").innerHTML = `<tr><td colspan="8">请先登录后台</td></tr>`;
   $("#intent-detail").className = "intent-detail empty-state";
   $("#intent-detail").textContent = "请选择左侧线索查看详情。";
@@ -710,7 +817,7 @@ async function logoutAdmin() {
 function renderMatchTable(items) {
   const table = $("#match-table");
   if (!items.length) {
-    table.innerHTML = `<tr><td colspan="5">暂无匹配记录</td></tr>`;
+    table.innerHTML = `<tr><td colspan="7">暂无匹配记录</td></tr>`;
     return;
   }
   table.innerHTML = items
@@ -723,6 +830,11 @@ function renderMatchTable(items) {
           <td>
             <span class="status-pill">${escapeHtml(item.match_mode_label || "-")}</span>
             ${item.ai_message ? `<p class="table-muted">${escapeHtml(item.ai_message)}</p>` : ""}
+          </td>
+          <td>
+            <strong>${escapeHtml(submission.name || "未填写")}</strong>
+            <p class="table-muted">${escapeHtml(submission.phone || "未填写手机号")}</p>
+            <p class="table-muted">${escapeHtml(submission.company || "未填写单位")}</p>
           </td>
           <td>
             <strong>${escapeHtml(submission.title || "未填写成果名称")}</strong>
@@ -757,11 +869,130 @@ function renderMatchTable(items) {
               }
             </div>
           </td>
+          <td><button class="btn" data-view-match="${escapeHtml(item.match_id)}"><i data-lucide="contact-round"></i>查看/跟进</button></td>
         </tr>
       `;
     })
     .join("");
+  $all("[data-view-match]").forEach((button) => {
+    button.addEventListener("click", () => loadMatchDetail(button.dataset.viewMatch));
+  });
   refreshIcons();
+}
+
+function matchFollowupStatusOptions(current) {
+  const statuses = state.matchFollowupStatuses.length
+    ? state.matchFollowupStatuses
+    : ["待联系成果方", "已联系成果方", "待联系需求方", "已联系需求方", "双方沟通中", "已安排会议", "已发送材料", "已签约", "已成交", "暂停跟进", "不再跟进"];
+  return statuses
+    .map((status) => `<option value="${escapeHtml(status)}" ${status === current ? "selected" : ""}>${escapeHtml(status)}</option>`)
+    .join("");
+}
+
+async function loadMatchDetail(matchId) {
+  const box = $("#match-detail");
+  box.className = "match-detail empty-state";
+  box.textContent = "正在读取需求方信息和对接进度...";
+  try {
+    const response = await api(`/api/matches/detail?match_id=${encodeURIComponent(matchId)}`);
+    state.matchFollowupStatuses = response.statuses || [];
+    renderMatchDetail(response.match || {});
+  } catch (error) {
+    box.textContent = error.message;
+    toast(error.message);
+  }
+}
+
+function renderMatchDetail(item) {
+  state.currentMatch = item;
+  const submission = item.submission || {};
+  const results = item.results || [];
+  const box = $("#match-detail");
+  box.className = "match-detail";
+  box.innerHTML = `
+    <div class="match-detail-summary">
+      <div>
+        <span class="muted-label">成果方联系人</span>
+        <h3>${escapeHtml(submission.name || "未填写姓名")} · ${escapeHtml(submission.company || "未填写单位")}</h3>
+        <p>${escapeHtml(submission.phone || "未填写手机号")}｜${escapeHtml(submission.title || "未填写成果名称")}</p>
+      </div>
+      <span class="status-pill">${escapeHtml(item.match_mode_label || "匹配记录")}</span>
+    </div>
+    <div class="match-candidate-list">
+      ${results.map(renderMatchCandidateFollowup).join("") || '<div class="empty-state">该记录没有可跟进的匹配需求。</div>'}
+    </div>
+  `;
+  $all("[data-save-match-followup]", box).forEach((button) => {
+    button.addEventListener("click", () => saveMatchFollowup(button));
+  });
+  refreshIcons();
+}
+
+function renderMatchCandidateFollowup(item) {
+  const followup = item.followup || {};
+  const demandId = escapeHtml(item.demand_id || "");
+  const sourceUrl = safeHttpUrl(item.source_url);
+  return `
+    <article class="match-candidate-card">
+      <div class="match-candidate-head">
+        <div>
+          <span class="muted-label">${escapeHtml(item.demand_no || item.demand_id || "技术需求")}</span>
+          <h3>${escapeHtml(item.name || "未命名需求")}</h3>
+        </div>
+        <span class="score-text score-${scoreLevel(item.score)}">${escapeHtml(item.score || "-")}%</span>
+      </div>
+      <div class="private-demand-grid">
+        ${detailRow("发布方", item.publisher || "未抓取到")}
+        ${detailRow("需求方联系方式", item.contact || "未抓取到")}
+        ${detailRow("所在地区", item.region || "-")}
+        ${detailRow("合作方式", item.cooperation_mode || "-")}
+        ${detailRow("技术领域", item.tech_field || "-")}
+        ${detailRow("需求类型", item.demand_type || "-")}
+      </div>
+      <div class="private-demand-detail">
+        <strong>完整需求信息</strong>
+        <p>${escapeHtml(item.full_detail || item.detail_summary || "暂无详情")}</p>
+        ${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer"><i data-lucide="external-link"></i>打开原始需求页面</a>` : ""}
+      </div>
+      <div class="match-followup-editor">
+        <label>对接状态<select data-match-followup-status="${demandId}">${matchFollowupStatusOptions(followup.status || "待联系成果方")}</select></label>
+        <label>联系记录<textarea data-match-contact-note="${demandId}" placeholder="例如：电话联系需求方，对方希望先看技术参数。">${escapeHtml(followup.contact_note || "")}</textarea></label>
+        <label>项目对接进度<textarea data-match-project-progress="${demandId}" placeholder="填写当前进展、待办事项和下一步计划。">${escapeHtml(followup.project_progress || "")}</textarea></label>
+        <div class="followup-save-row">
+          <span>${followup.updated_at ? `最近更新：${escapeHtml(followup.updated_at)}` : "尚未保存对接记录"}</span>
+          <button class="btn primary" data-save-match-followup="${demandId}"><i data-lucide="save"></i>保存对接进度</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+async function saveMatchFollowup(button) {
+  if (!state.currentMatch) return;
+  const demandId = button.dataset.saveMatchFollowup;
+  const status = $(`[data-match-followup-status="${CSS.escape(demandId)}"]`).value;
+  const contactNote = $(`[data-match-contact-note="${CSS.escape(demandId)}"]`).value.trim();
+  const projectProgress = $(`[data-match-project-progress="${CSS.escape(demandId)}"]`).value.trim();
+  setButtonLoading(button, true, "保存中");
+  try {
+    const response = await api("/api/matches/followup", {
+      method: "POST",
+      body: JSON.stringify({
+        match_id: state.currentMatch.match_id,
+        demand_id: demandId,
+        status,
+        contact_note: contactNote,
+        project_progress: projectProgress,
+      }),
+    });
+    state.matchFollowupStatuses = response.statuses || state.matchFollowupStatuses;
+    renderMatchDetail(response.match || {});
+    toast("对接进度已保存");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    if (button.isConnected) setButtonLoading(button, false);
+  }
 }
 
 function renderIntentTable(items) {
@@ -1034,6 +1265,7 @@ async function loadDemandPreview(keyword = "") {
           <div class="tags">
             ${tag(item.tech_field)}
             ${tag(item.demand_type)}
+            ${tag(item.publisher ? `发布方 ${item.publisher}` : "")}
             ${tag(item.region)}
             ${tag(item.intended_price ? `意向投入 ${item.intended_price}` : "")}
           </div>
@@ -1056,6 +1288,7 @@ function bindEvents() {
   $("#submit-match").addEventListener("click", () => runMatch(null, $("#submit-match")));
   $("#intent-submit").addEventListener("click", () => submitIntent($("#intent-submit")));
   $("#progress-query").addEventListener("click", () => queryProgress($("#progress-query")));
+  $("#public-demand-more").addEventListener("click", () => loadPublicDemands(false));
   $("#copy-query-code").addEventListener("click", async () => {
     const code = $("#success-query-code").textContent.trim();
     if (!code || code === "-") {

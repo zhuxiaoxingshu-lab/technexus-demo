@@ -1,25 +1,58 @@
 <view class="page">
-  <view class="card">
-    <text class="section-title">合作意向提交</text>
-    <view class="muted">确认中介服务协议后，线索进入后台待审核。平台将在 3 个工作日内完成初步审核或联系。</view>
+  <view class="hero-shell compact">
+    <image class="hero-image" src="/assets/jiangsu_nanjing_cbd.jpg" mode="aspectFill" />
+    <view class="hero-mask"></view>
+    <view class="hero-content">
+      <view>
+        <text class="eyebrow">合作意向提交</text>
+        <view class="hero-main">
+          <text class="hero-title">确认协议后，线索才会进入后台人工审核与撮合</text>
+          <text class="hero-copy">平台会在 3 个工作日内完成初步审核或联系。成交金额和内部备注只在后台可见，前台不会展示需求方联系方式。</text>
+        </view>
+      </view>
+      <view class="hero-kpis">
+        <view class="hero-kpi">
+          <strong>3日</strong>
+          <span>初步反馈承诺</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>5%</strong>
+          <span>成交后服务费</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>隐藏</strong>
+          <span>需求方联系方式</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>查询码</strong>
+          <span>提交后可追踪进度</span>
+        </view>
+      </view>
+    </view>
   </view>
 
-  <view class="card">
-    <text class="section-title">已选需求</text>
+  <view class="band">
+    <view class="band-header">
+      <text class="section-title">已选需求</text>
+      <text class="muted">你提交的合作意向会和当前这条匹配需求一起进入后台。</text>
+    </view>
     <view wx:if="{{selected}}" class="selected-demand">
       <view class="result-name">{{selected.name}}</view>
       <view class="tags">
         <text class="tag">匹配 {{selected.score}}%</text>
         <text wx:for="{{selected.tags}}" wx:for-item="tag" wx:key="*this" class="tag">{{tag}}</text>
       </view>
-      <view class="muted">{{selected.reason}}</view>
+      <view class="reason">{{selected.reason}}</view>
     </view>
     <view wx:else class="empty">请先在匹配结果中选择“我想合作”的需求。</view>
   </view>
 
   <form bindsubmit="submitForm">
-    <view class="card">
-      <text class="section-title">中介服务协议</text>
+    <view class="band">
+      <view class="band-header">
+        <text class="section-title">中介服务协议</text>
+        <text class="muted">提交前请完整阅读并确认同意。</text>
+      </view>
       <scroll-view scroll-y class="agreement-box">
         <text class="agreement-title">《TechNexus 技术撮合中介服务协议》</text>
         <text class="agreement-section">版本：TechNexus-2026-06-01-v2。本协议用于试用版线上确认，正式成交前可根据实际合作主体、项目金额和交易结构另行签署正式书面协议。</text>
@@ -34,30 +67,39 @@
         <text class="agreement-section">九、个人信息与数据使用：甲方同意乙方为完成匹配、审核、联系、撮合和后台管理之目的，保存并使用甲方提交的姓名、手机号、单位、技术成果摘要、留言、匹配需求和跟进记录。</text>
         <text class="agreement-section">十、争议解决：因本协议或技术撮合服务产生争议的，双方应先友好协商；协商不成的，以后续正式签署文件约定为准。</text>
       </scroll-view>
+
       <checkbox-group bindchange="agreementChange">
         <label class="check-row">
           <checkbox value="agree" checked="{{agreement}}" />
           <text>我已完整阅读并同意《TechNexus 技术撮合中介服务协议》，确认通过平台撮合成交后按实际成交金额的 5% 支付技术撮合中介服务费。</text>
         </label>
       </checkbox-group>
+    </view>
 
+    <view class="band">
+      <view class="band-header">
+        <text class="section-title">联系人信息</text>
+        <text class="muted">这部分用于平台人工联系和后续推进，不会在前台对外展示。</text>
+      </view>
       <label class="field">
         <text class="field-label">姓名</text>
-        <input class="input" name="name" placeholder="必填" />
+        <input class="input" name="name" value="{{contact.name}}" placeholder="必填" />
       </label>
       <label class="field">
         <text class="field-label">手机号</text>
-        <input class="input" name="phone" type="number" placeholder="必填，用于平台人工联系" />
+        <input class="input" name="phone" type="number" value="{{contact.phone}}" placeholder="必填，用于平台人工联系" />
       </label>
       <label class="field">
         <text class="field-label">单位</text>
-        <input class="input" name="company" placeholder="必填" />
+        <input class="input" name="company" value="{{contact.company}}" placeholder="必填" />
       </label>
       <label class="field">
         <text class="field-label">留言</text>
         <textarea class="textarea" name="message" placeholder="可补充合作诉求、时间安排或希望平台注意的信息。"></textarea>
       </label>
-      <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading || !selected}}">提交合作意向</button>
+      <view class="actions">
+        <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading || !selected}}">提交合作意向</button>
+      </view>
     </view>
   </form>
 
@@ -70,5 +112,14 @@
       <button class="btn small primary" bindtap="goProgress">查询进度</button>
       <button class="btn small ghost" bindtap="previewQr">关注公众号</button>
     </view>
+  </view>
+
+  <view class="card official-card" bindtap="previewQr">
+    <image class="official-avatar" src="{{avatar}}" mode="aspectFit" />
+    <view class="official-text">
+      <text class="official-strong">关注 OPC 创业汇</text>
+      <text class="muted">后续项目更新、撮合进度信息和小程序入口都会优先在这里同步。</text>
+    </view>
+    <image class="official-qr" src="{{qrcode}}" mode="aspectFit" />
   </view>
 </view>

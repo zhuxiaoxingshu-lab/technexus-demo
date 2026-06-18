@@ -1,15 +1,48 @@
 <view class="page">
-  <view class="card">
-    <text class="section-title">查询对接进度</text>
-    <view class="muted">输入合作意向提交后生成的查询码，查看平台撮合进度。成交金额和内部备注仅后台可见。</view>
-    <view class="top-space"></view>
+  <view class="hero-shell compact">
+    <image class="hero-image" src="/assets/jiangsu_industrial_workshop.jpg" mode="aspectFill" />
+    <view class="hero-mask"></view>
+    <view class="hero-content">
+      <view>
+        <text class="eyebrow">对接进度查询</text>
+        <view class="hero-main">
+          <text class="hero-title">用查询码查看平台当前推进到了哪一步</text>
+          <text class="hero-copy">输入合作意向提交后生成的查询码，查看平台撮合进度。成交金额和内部备注仅后台可见。</text>
+        </view>
+      </view>
+      <view class="hero-kpis">
+        <view class="hero-kpi">
+          <strong>3日</strong>
+          <span>初步反馈承诺</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>公开</strong>
+          <span>仅展示可对外进度</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>后台</strong>
+          <span>成交金额仅后台可见</span>
+        </view>
+        <view class="hero-kpi">
+          <strong>持续</strong>
+          <span>人工更新节点状态</span>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="band">
+    <view class="band-header">
+      <text class="section-title">输入查询码</text>
+      <text class="muted">提交合作意向后，请妥善保存查询码。平台将在 3 个工作日内完成初步审核或联系。</text>
+    </view>
     <input class="input" value="{{queryCode}}" bindinput="inputCode" placeholder="例如：TN-7FQ2M9XA" />
     <view class="actions">
       <button class="btn primary" bindtap="query" loading="{{loading}}" disabled="{{loading}}">查询进度</button>
     </view>
   </view>
 
-  <view wx:if="{{!progress}}" class="empty">提交合作意向后，请保存查询码。平台将在 3 个工作日内完成初步审核或联系。</view>
+  <view wx:if="{{!progress}}" class="empty">还没有可展示的进度信息时，这里会保持简洁。提交合作意向后，请保存查询码并回来查看。</view>
 
   <view wx:if="{{progress}}" class="progress-card">
     <view class="progress-head">
@@ -19,11 +52,14 @@
       </view>
       <text class="status-pill">{{progress.status}}</text>
     </view>
-    <view class="detail-row"><text>提交时间</text><text>{{progress.created_at || '-'}}</text></view>
-    <view class="detail-row"><text>最近更新</text><text>{{progress.updated_at || '-'}}</text></view>
-    <view class="detail-row"><text>匹配需求</text><text>{{progress.demand.name}}</text></view>
-    <view class="detail-row"><text>匹配分</text><text>{{progress.demand.score_text}}</text></view>
-    <view class="detail-row"><text>平台说明</text><text>{{progress.public_note || progress.promise || '-'}}</text></view>
+
+    <view class="progress-summary">
+      <view class="detail-row"><text>提交时间</text><text>{{progress.created_at || '-'}}</text></view>
+      <view class="detail-row"><text>最近更新</text><text>{{progress.updated_at || '-'}}</text></view>
+      <view class="detail-row"><text>匹配需求</text><text>{{progress.demand.name}}</text></view>
+      <view class="detail-row"><text>匹配分</text><text>{{progress.demand.score_text}}</text></view>
+      <view class="detail-row"><text>平台说明</text><text>{{progress.public_note || progress.promise || '-'}}</text></view>
+    </view>
 
     <view wx:for="{{progress.progress}}" wx:key="key" class="step-row {{item.done ? 'done' : ''}}">
       <view class="step-dot">{{item.done ? '✓' : ''}}</view>
@@ -35,7 +71,7 @@
   </view>
 
   <view class="card official-card" bindtap="previewQr">
-    <image class="official-avatar" src="/assets/wechat-official-avatar.jpg" mode="aspectFit" />
+    <image class="official-avatar" src="{{avatar}}" mode="aspectFit" />
     <view class="official-text">
       <text class="official-strong">关注 OPC 创业汇</text>
       <text class="muted">后续小程序上线和项目更新会优先在这里发布。</text>

@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/demands/demands",
     "pages/submit/submit",
     "pages/results/results",
     "pages/intent/intent",

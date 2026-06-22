@@ -1,1 +1,21 @@
 /* 首页样式主要复用全局 app.wxss */
+
+.hero-actions {
+  flex-wrap: wrap;
+}
+
+.hero-actions .btn {
+  width: 48.5%;
+  flex: 0 0 auto;
+  padding: 0 16rpx;
+}
+
+.hall-entry {
+  border-color: #b9ddd2;
+  background: linear-gradient(135deg, #f2fbf7 0%, #ffffff 100%);
+}
+
+.hall-entry .actions .btn {
+  flex: 1;
+  padding: 0 16rpx;
+}

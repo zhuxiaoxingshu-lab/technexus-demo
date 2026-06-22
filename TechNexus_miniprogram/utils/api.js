@@ -36,6 +36,10 @@ function getStats() {
   return request("/api/stats");
 }
 
+function getPublicDemands(offset = 0, limit = 20) {
+  return request(`/api/public/demands?offset=${offset}&limit=${limit}`);
+}
+
 function matchDemands(payload) {
   return request("/api/match", {
     method: "POST",
@@ -61,6 +65,7 @@ function queryProgress(queryCode) {
 }
 
 module.exports = {
+  getPublicDemands,
   getStats,
   matchDemands,
   queryProgress,

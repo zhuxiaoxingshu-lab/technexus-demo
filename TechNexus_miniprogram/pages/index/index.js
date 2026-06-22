@@ -82,6 +82,10 @@ Page({
     wx.navigateTo({ url: "/pages/submit/submit" });
   },
 
+  goDemands() {
+    wx.navigateTo({ url: "/pages/demands/demands" });
+  },
+
   goProgress() {
     wx.navigateTo({ url: "/pages/progress/progress" });
   },

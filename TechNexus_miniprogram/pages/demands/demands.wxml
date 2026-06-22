@@ -1,0 +1,52 @@
+<view class="page">
+  <view class="hero-shell compact demand-hero">
+    <image class="hero-image" src="/assets/jiangsu_industrial_workshop.jpg" mode="aspectFill" />
+    <view class="hero-mask"></view>
+    <view class="hero-content">
+      <view>
+        <text class="eyebrow">江苏真实产业需求</text>
+        <view class="hero-main">
+          <text class="hero-title">技术需求大厅</text>
+          <text class="hero-copy">公开展示部分已入库需求，需求方身份及联系方式由平台后台管理，精准查找请提交成果交给 AI。</text>
+        </view>
+        <view class="hero-actions">
+          <button class="btn primary" bindtap="goSubmit">AI匹配我的成果</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="band ai-guide">
+    <view class="guide-number">{{totalText}}</view>
+    <view class="guide-copy">
+      <text class="section-title">条已入库技术需求</text>
+      <text class="muted">这里用于了解需求样本，不提供关键词搜索或筛选。提交成果后，AI 会从完整需求库中召回并精排。</text>
+    </view>
+  </view>
+
+  <view wx:if="{{error && !demands.length}}" class="empty error-box">
+    <text>{{error}}</text>
+    <button class="btn small primary" bindtap="retry">重新加载</button>
+  </view>
+
+  <view wx:for="{{demands}}" wx:key="demand_id" class="demand-card">
+    <view class="demand-topline">
+      <text class="demand-no">{{item.demand_no || item.demand_id}}</text>
+      <text wx:if="{{item.intended_price}}" class="price-pill">意向投入 {{item.intended_price}}</text>
+    </view>
+    <text class="demand-name">{{item.name}}</text>
+    <view class="tags">
+      <text wx:if="{{item.tech_field}}" class="tag">{{item.tech_field}}</text>
+      <text wx:if="{{item.demand_type}}" class="tag">{{item.demand_type}}</text>
+      <text wx:if="{{item.region}}" class="tag">{{item.region}}</text>
+      <text wx:if="{{item.cooperation_mode}}" class="tag">{{item.cooperation_mode}}</text>
+    </view>
+    <text wx:if="{{item.detail_summary}}" class="demand-summary">{{item.detail_summary}}</text>
+    <view class="privacy-note">需求方身份及联系方式由平台后台管理</view>
+    <button class="btn primary demand-action" bindtap="goSubmit">提交成果匹配</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="load-state">正在加载需求…</view>
+  <view wx:elif="{{demands.length && hasMore}}" class="load-state load-more" bindtap="loadMore">加载更多</view>
+  <view wx:elif="{{demands.length}}" class="load-state">已展示全部公开需求</view>
+</view>

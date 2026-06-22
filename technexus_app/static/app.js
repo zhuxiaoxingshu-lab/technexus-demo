@@ -26,7 +26,7 @@ const titleMap = {
   home: ["技术成果找需求", "提交技术成果，AI 匹配真实技术需求，合作意向由平台人工审核撮合。"],
   demands: ["技术需求大厅", "浏览真实需求样本，提交成果后由 AI 从完整需求库精准匹配。"],
   submit: ["成果提交", "填写联系人信息与技术资料，开始精准匹配。"],
-  results: ["匹配结果", "展示匹配分数、理由和合作建议，不展示需求方联系方式。"],
+  results: ["匹配结果", "展示匹配分数、理由和合作建议，不展示需求方身份及联系方式。"],
   intent: ["合作意向", "确认中介服务协议后，线索进入后台审核。"],
   progress: ["进度查询", "输入查询码，查看技术撮合对接进度。"],
   admin: ["后台管理", "管理需求库、匹配记录、合作意向和协议确认。"],
@@ -380,7 +380,6 @@ function renderResults(results) {
               <div class="tags">
                 ${tag(item.tech_field)}
                 ${tag(item.demand_type)}
-                ${tag(item.publisher ? `发布方 ${item.publisher}` : "")}
                 ${tag(item.intended_price ? `意向投入 ${item.intended_price}` : "")}
                 ${tag(item.region)}
                 ${tag(item.cooperation_mode)}
@@ -600,7 +599,6 @@ function renderPublicDemandCard(item) {
         </div>
         ${item.intended_price ? `<span class="price-chip">意向投入 ${escapeHtml(item.intended_price)}</span>` : ""}
       </div>
-      <div class="publisher-line"><i data-lucide="building-2"></i><span>发布方</span><strong>${escapeHtml(item.publisher || "暂未公开")}</strong></div>
       <div class="tags">
         ${tag(item.tech_field)}
         ${tag(item.demand_type)}
@@ -609,7 +607,7 @@ function renderPublicDemandCard(item) {
       </div>
       <p>${escapeHtml(item.detail_summary || "暂无需求详情")}</p>
       <div class="public-demand-foot">
-        <span><i data-lucide="shield-check"></i>联系方式由平台后台管理</span>
+        <span><i data-lucide="shield-check"></i>需求方身份及联系方式由平台后台管理</span>
         <button class="btn small" data-view="submit"><i data-lucide="sparkles"></i>提交成果匹配</button>
       </div>
     </article>

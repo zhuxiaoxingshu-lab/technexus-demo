@@ -117,7 +117,7 @@
       <view class="band-header">
         <text class="section-title">提交前提醒</text>
       </view>
-      <view class="soft-tip">前台不会展示需求方联系方式；如果匹配后你想继续推进，合作意向会进入后台，由平台人工审核、联系和撮合。</view>
+      <view class="soft-tip">前台不会展示需求方身份及联系方式；如果匹配后你想继续推进，合作意向会进入后台，由平台人工审核、联系和撮合。</view>
       <view class="actions">
         <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading}}">开始匹配</button>
       </view>

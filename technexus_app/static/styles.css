@@ -1311,8 +1311,7 @@ th {
 .match-candidate-head,
 .match-detail-summary,
 .followup-save-row,
-.public-demand-foot,
-.publisher-line {
+.public-demand-foot {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1339,22 +1338,6 @@ th {
   padding: 5px 9px;
   font-size: 12px;
   white-space: nowrap;
-}
-
-.publisher-line {
-  justify-content: flex-start;
-  align-items: center;
-  color: var(--muted);
-  border-left: 3px solid var(--teal);
-  padding-left: 10px;
-}
-
-.publisher-line svg {
-  width: 16px;
-}
-
-.publisher-line strong {
-  color: var(--ink);
 }
 
 .public-demand-card > p,

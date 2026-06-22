@@ -1,0 +1,112 @@
+.demand-hero {
+  min-height: 430rpx;
+}
+
+.demand-hero .hero-actions .btn {
+  margin: 0;
+}
+
+.ai-guide {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  border-color: #b9ddd2;
+  background: linear-gradient(135deg, #eef9f5 0%, #ffffff 100%);
+}
+
+.guide-number {
+  flex: 0 0 auto;
+  color: #0f766e;
+  font-size: 54rpx;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.guide-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-copy .section-title {
+  font-size: 28rpx;
+}
+
+.demand-card {
+  padding: 28rpx;
+  margin-bottom: 22rpx;
+  border: 1rpx solid #d7e2dd;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18rpx 48rpx rgba(15, 39, 34, 0.08);
+}
+
+.demand-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 14rpx;
+}
+
+.demand-no {
+  color: #71817c;
+  font-size: 22rpx;
+}
+
+.price-pill {
+  flex: 0 0 auto;
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  background: #fff4d8;
+  color: #8a5a12;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.demand-name {
+  display: block;
+  color: #14221f;
+  font-size: 32rpx;
+  line-height: 1.5;
+  font-weight: 800;
+}
+
+.demand-summary {
+  display: -webkit-box;
+  margin-top: 18rpx;
+  overflow: hidden;
+  color: #41534e;
+  font-size: 26rpx;
+  line-height: 1.72;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.privacy-note {
+  margin-top: 20rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid #edf2f0;
+  color: #71817c;
+  font-size: 23rpx;
+}
+
+.demand-action {
+  width: 100%;
+  margin-top: 18rpx;
+}
+
+.load-state {
+  padding: 24rpx;
+  color: #71817c;
+  text-align: center;
+  font-size: 24rpx;
+}
+
+.load-more {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.error-box .btn {
+  margin-top: 20rpx;
+}

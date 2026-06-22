@@ -641,6 +641,12 @@ def sanitize_demand(demand: dict, *, include_detail: bool = False) -> dict:
     return item
 
 
+def public_demand_payload(item: dict) -> dict:
+    """Remove demand-side identity and contact fields from user-facing responses."""
+    hidden_fields = {"publisher", "contact", "source_url", "full_detail"}
+    return {key: value for key, value in item.items() if key not in hidden_fields}
+
+
 def admin_demand_payload(demand: dict) -> dict:
     item = sanitize_demand(demand, include_detail=True)
     item.update(
@@ -2585,7 +2591,14 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 self.send_error_json(HTTPStatus.BAD_REQUEST, "分页参数不正确")
                 return
             items, total = self.store.search_page(keyword="", offset=offset, limit=limit)
-            self.send_json({"items": items, "total": total, "offset": offset, "limit": limit})
+            self.send_json(
+                {
+                    "items": [public_demand_payload(item) for item in items],
+                    "total": total,
+                    "offset": offset,
+                    "limit": limit,
+                }
+            )
             return
         if parsed.path == "/api/intents":
             if not self.require_admin():
@@ -2738,7 +2751,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             self.send_json(
                 {
                     "submission_id": submission_id,
-                    "results": results,
+                    "results": [public_demand_payload(item) for item in results],
                     "ai_meta": ai_meta,
                     "match_mode": match_mode,
                     **self.store.stats(),
@@ -2759,6 +2772,9 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 self.send_error_json(HTTPStatus.BAD_REQUEST, "请填写姓名、手机号和单位，便于后续人工撮合")
                 return
             selected = payload.get("selected_result") or {}
+            selected_demand = self.store.by_id(clean_text(selected.get("demand_id")))
+            if selected_demand:
+                selected = {**selected, **admin_demand_payload(selected_demand)}
             timestamp = now_iso()
             intent = {
                 "intent_id": uuid.uuid4().hex,
@@ -2784,6 +2800,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "intent": {
                         **intent,
+                        "selected_result": public_demand_payload(intent["selected_result"]),
                         "promise": PUBLIC_RESPONSE_PROMISE,
                     },
                 }

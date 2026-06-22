@@ -7,7 +7,7 @@
         <text class="eyebrow">{{modeTitle}}</text>
         <view class="hero-main">
           <text class="hero-title">返回 5 条以内候选需求，只展示能判断合作价值的信息</text>
-          <text class="hero-copy">{{modeCopy}} 平台前台不展示需求方联系方式；如需继续推进，请提交合作意向进入后台人工撮合。</text>
+          <text class="hero-copy">{{modeCopy}} 平台前台不展示需求方身份及联系方式；如需继续推进，请提交合作意向进入后台人工撮合。</text>
         </view>
       </view>
       <view class="hero-kpis">
@@ -21,7 +21,7 @@
         </view>
         <view class="hero-kpi">
           <strong>隐藏</strong>
-          <span>需求方联系方式</span>
+          <span>需求方身份信息</span>
         </view>
         <view class="hero-kpi">
           <strong>3日</strong>
@@ -34,7 +34,7 @@
   <view class="band">
     <view class="band-header">
       <text class="section-title">{{modeTitle}}</text>
-      <text class="muted">最多展示 5 条需求，只展示匹配分、理由和合作建议，不展示需求方联系方式。</text>
+      <text class="muted">最多展示 5 条需求，只展示匹配分、理由和合作建议，不展示需求方身份及联系方式。</text>
     </view>
     <view class="actions">
       <button class="btn ghost" bindtap="goSubmit">修改成果</button>

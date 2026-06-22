@@ -7,10 +7,11 @@
         <text class="eyebrow">江苏产业需求库 · 南京 / 苏州 / 无锡 / 盐城</text>
         <view class="hero-main">
           <text class="hero-title">把技术成果放进江苏产业场景里，找到真正可能成交的需求</text>
-          <text class="hero-copy">TechNexus 基于 JSTEC 真实技术需求库进行快速匹配和 AI 智能匹配。前台不展示需求方联系方式，合作意向统一进入后台人工审核与撮合。</text>
+          <text class="hero-copy">TechNexus 基于 JSTEC 真实技术需求库进行快速匹配和 AI 智能匹配。前台不展示需求方身份及联系方式，合作意向统一进入后台人工审核与撮合。</text>
         </view>
         <view class="hero-actions">
-          <button class="btn primary" bindtap="goSubmit">开始匹配</button>
+          <button class="btn primary" bindtap="goSubmit">AI匹配成果</button>
+          <button class="btn ghost" bindtap="goDemands">需求大厅</button>
           <button class="btn ghost" bindtap="goProgress">查询进度</button>
         </view>
       </view>
@@ -36,6 +37,17 @@
     </view>
   </view>
 
+  <view class="band hall-entry">
+    <view class="band-header">
+      <text class="section-title">浏览真实技术需求</text>
+      <text class="muted">需求大厅公开展示部分已入库需求，不公开需求方身份，也不提供关键词筛选。提交成果后，AI 会从完整需求库中召回并精排更合适的项目。</text>
+    </view>
+    <view class="actions">
+      <button class="btn ghost" bindtap="goDemands">进入需求大厅</button>
+      <button class="btn primary" bindtap="goSubmit">让 AI 帮我找</button>
+    </view>
+  </view>
+
   <view class="insight-stack">
     <view class="media-card">
       <image class="media-cover" src="{{labImage}}" mode="aspectFill" />
@@ -57,7 +69,7 @@
       </view>
       <view class="metric-card">
         <strong>隐藏</strong>
-        <span>需求方联系方式</span>
+        <span>需求方身份信息</span>
       </view>
       <view class="metric-card">
         <strong>查询码</strong>

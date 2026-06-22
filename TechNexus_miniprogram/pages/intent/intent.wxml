@@ -7,7 +7,7 @@
         <text class="eyebrow">合作意向提交</text>
         <view class="hero-main">
           <text class="hero-title">确认协议后，线索才会进入后台人工审核与撮合</text>
-          <text class="hero-copy">平台会在 3 个工作日内完成初步审核或联系。成交金额和内部备注只在后台可见，前台不会展示需求方联系方式。</text>
+          <text class="hero-copy">平台会在 3 个工作日内完成初步审核或联系。成交金额和内部备注只在后台可见，前台不会展示需求方身份及联系方式。</text>
         </view>
       </view>
       <view class="hero-kpis">
@@ -21,7 +21,7 @@
         </view>
         <view class="hero-kpi">
           <strong>隐藏</strong>
-          <span>需求方联系方式</span>
+          <span>需求方身份信息</span>
         </view>
         <view class="hero-kpi">
           <strong>查询码</strong>
@@ -61,7 +61,7 @@
         <text class="agreement-section">三、服务费用：甲方可免费查看平台生成的匹配结果。若经乙方推荐、介绍、协调或撮合达成实质性合作，甲方应按实际成交金额的 5% 向乙方支付技术撮合中介服务费。</text>
         <text class="agreement-section">四、防跳单约定：自乙方向甲方推荐、披露或协助接触某一需求方、需求项目、联系人或技术需求信息之日起 12 个月内，甲方不得绕开乙方私下与该需求方或其关联方就同一或实质相近项目达成合作。</text>
         <text class="agreement-section">五、信息真实性与知识产权：甲方应保证提交信息真实、合法、有效，不侵犯他人知识产权、商业秘密、个人信息权益或其他合法权益。</text>
-        <text class="agreement-section">六、保密与信息展示：平台前台不展示需求方联系方式。甲方通过平台获得的需求信息、匹配结果和沟通记录仅可用于本次合作评估，不得擅自公开、转发、出售或用于绕开乙方的私下交易。</text>
+        <text class="agreement-section">六、保密与信息展示：平台前台不展示需求方身份及联系方式。甲方通过平台获得的需求信息、匹配结果和沟通记录仅可用于本次合作评估，不得擅自公开、转发、出售或用于绕开乙方的私下交易。</text>
         <text class="agreement-section">七、AI 匹配说明：快速匹配仅通过本地规则进行模糊检索，不调用外部 AI API；AI 智能匹配会调用 DeepSeek API 对候选需求进行精排并生成理由。AI 匹配结果仅作为辅助参考。</text>
         <text class="agreement-section">八、合作审核与免责：乙方有权根据资料完整性、需求匹配度、合法合规风险和服务资源安排决定是否继续撮合，不保证一定联系成功、签约或产生收益。</text>
         <text class="agreement-section">九、个人信息与数据使用：甲方同意乙方为完成匹配、审核、联系、撮合和后台管理之目的，保存并使用甲方提交的姓名、手机号、单位、技术成果摘要、留言、匹配需求和跟进记录。</text>

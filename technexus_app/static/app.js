@@ -26,7 +26,7 @@ const titleMap = {
   home: ["技术成果找需求", "提交技术成果，AI 匹配真实技术需求，合作意向由平台人工审核撮合。"],
   demands: ["技术需求大厅", "浏览真实需求样本，提交成果后由 AI 从完整需求库精准匹配。"],
   submit: ["成果提交", "填写联系人信息与技术资料，开始精准匹配。"],
-  results: ["匹配结果", "展示匹配分数、理由和合作建议，不展示需求方身份及联系方式。"],
+  results: ["匹配结果", "展示匹配分数、具体技术需求和合作建议，不展示需求方身份及联系方式。"],
   intent: ["合作意向", "确认中介服务协议后，线索进入后台审核。"],
   progress: ["进度查询", "输入查询码，查看技术撮合对接进度。"],
   admin: ["后台管理", "管理需求库、匹配记录、合作意向和协议确认。"],
@@ -337,6 +337,31 @@ function renderMatchedTagSummary(item) {
   `;
 }
 
+function renderDemandDetail(item, index) {
+  const detail = String(item?.demand_detail || item?.detail_summary || "").trim();
+  if (!detail) return "";
+  const expandable = detail.length > 360;
+  return `
+    <section class="demand-detail-card${expandable ? " is-collapsed" : ""}" data-demand-detail-card="${index}">
+      <div class="demand-detail-head">
+        <div>
+          <span class="demand-detail-eyebrow">匹配项目需求正文</span>
+          <h3>具体技术需求</h3>
+        </div>
+        <span class="privacy-note"><i data-lucide="shield-check"></i>需求方身份与联系方式已隐藏</span>
+      </div>
+      <div class="demand-detail-text">${escapeHtml(detail)}</div>
+      ${
+        expandable
+          ? `<button class="demand-detail-toggle" type="button" data-demand-toggle="${index}" aria-expanded="false">
+              展开全部 <i data-lucide="chevron-down"></i>
+            </button>`
+          : ""
+      }
+    </section>
+  `;
+}
+
 function scoreLevel(score) {
 
   const value = Number(score || 0);
@@ -396,6 +421,7 @@ function renderResults(results) {
             ${scoreBar("成熟度", dims["成熟度"])}
           </div>
           ${renderMatchedTagSummary(item)}
+          ${renderDemandDetail(item, index)}
           <div class="reason">${escapeHtml(item.reason)}</div>
           <div class="suggestion">${escapeHtml(item.suggestion)}</div>
           <div class="top-actions left">
@@ -407,6 +433,19 @@ function renderResults(results) {
     .join("");
   $all("[data-intent-index]").forEach((button) => {
     button.addEventListener("click", () => selectResult(Number(button.dataset.intentIndex)));
+  });
+  $all("[data-demand-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const card = $(`[data-demand-detail-card="${button.dataset.demandToggle}"]`);
+      if (!card) return;
+      const expanded = card.classList.toggle("is-expanded");
+      card.classList.toggle("is-collapsed", !expanded);
+      button.setAttribute("aria-expanded", expanded ? "true" : "false");
+      button.innerHTML = expanded
+        ? '收起 <i data-lucide="chevron-up"></i>'
+        : '展开全部 <i data-lucide="chevron-down"></i>';
+      refreshIcons();
+    });
   });
   refreshIcons();
 }

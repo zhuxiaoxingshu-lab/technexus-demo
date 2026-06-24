@@ -7,7 +7,7 @@
         <text class="eyebrow">江苏产业需求库 · 南京 / 苏州 / 无锡 / 盐城</text>
         <view class="hero-main">
           <text class="hero-title">把技术成果放进江苏产业场景里，找到真正可能成交的需求</text>
-          <text class="hero-copy">TechNexus 基于 JSTEC 真实技术需求库进行快速匹配和 AI 智能匹配。前台不展示需求方身份及联系方式，合作意向统一进入后台人工审核与撮合。</text>
+          <text class="hero-copy">元数启技术转移基于真实技术需求库进行快速匹配和 AI 智能匹配。前台不展示需求方身份及联系方式，合作意向统一进入后台人工审核与撮合。</text>
         </view>
         <view class="hero-actions">
           <button class="btn primary" bindtap="goSubmit">AI匹配成果</button>

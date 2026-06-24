@@ -1,5 +1,5 @@
 {
-  "description": "TechNexus技术经理人微信小程序试用版",
+  "description": "元数启技术转移微信小程序试用版",
   "packOptions": {
     "ignore": [],
     "include": []
@@ -31,9 +31,9 @@
     }
   },
   "compileType": "miniprogram",
-  "libVersion": "latest",
+  "libVersion": "3.15.2",
   "appid": "wxc061a1b820931ced",
-  "projectname": "TechNexus技术经理人",
+  "projectname": "元数启技术转移",
   "condition": {},
   "editorSetting": {
     "tabIndent": "insertSpaces",

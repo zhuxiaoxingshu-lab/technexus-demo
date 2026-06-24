@@ -7,7 +7,7 @@
         <text class="eyebrow">{{modeTitle}}</text>
         <view class="hero-main">
           <text class="hero-title">返回 5 条以内候选需求，只展示能判断合作价值的信息</text>
-          <text class="hero-copy">{{modeCopy}} 平台前台不展示需求方身份及联系方式；如需继续推进，请提交合作意向进入后台人工撮合。</text>
+          <text class="hero-copy">{{modeCopy}} 匹配结果会展示具体技术需求，但不展示需求方身份及联系方式；如需继续推进，请提交合作意向进入后台人工撮合。</text>
         </view>
       </view>
       <view class="hero-kpis">
@@ -34,7 +34,7 @@
   <view class="band">
     <view class="band-header">
       <text class="section-title">{{modeTitle}}</text>
-      <text class="muted">最多展示 5 条需求，只展示匹配分、理由和合作建议，不展示需求方身份及联系方式。</text>
+      <text class="muted">最多展示 5 条需求，展示匹配分、具体技术需求、理由和合作建议，不展示需求方身份及联系方式。</text>
     </view>
     <view class="actions">
       <button class="btn ghost" bindtap="goSubmit">修改成果</button>
@@ -63,6 +63,22 @@
       <view class="bar-track">
         <view class="bar-fill" style="width: {{dim.value}}%;"></view>
       </view>
+    </view>
+    <view wx:if="{{item.detail_text}}" class="demand-detail-card">
+      <view class="demand-detail-head">
+        <view>
+          <text class="demand-detail-eyebrow">匹配项目需求正文</text>
+          <text class="demand-detail-title">具体技术需求</text>
+        </view>
+        <text class="privacy-note">需求方身份与联系方式已隐藏</text>
+      </view>
+      <text class="demand-detail-text {{item.has_long_detail && !item.detail_expanded ? 'collapsed' : ''}}">{{item.detail_text}}</text>
+      <button
+        wx:if="{{item.has_long_detail}}"
+        class="detail-toggle"
+        data-index="{{item.index}}"
+        bindtap="toggleDemandDetail"
+      >{{item.detail_expanded ? '收起' : '展开全部'}}</button>
     </view>
     <view class="reason">{{item.reason || '暂无匹配理由，建议由平台人工复核。'}}</view>
     <view class="suggestion">{{item.suggestion || '建议补充成果指标、成熟度和合作方式后继续撮合。'}}</view>

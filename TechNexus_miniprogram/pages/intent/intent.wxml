@@ -54,9 +54,9 @@
         <text class="muted">提交前请完整阅读并确认同意。</text>
       </view>
       <scroll-view scroll-y class="agreement-box">
-        <text class="agreement-title">《TechNexus 技术撮合中介服务协议》</text>
-        <text class="agreement-section">版本：TechNexus-2026-06-01-v2。本协议用于试用版线上确认，正式成交前可根据实际合作主体、项目金额和交易结构另行签署正式书面协议。</text>
-        <text class="agreement-section">一、协议主体：甲方为提交技术成果、合作意向或委托撮合需求的来访者、个人、团队或单位。乙方为 TechNexus 技术经理人平台运营方及其授权服务人员。</text>
+        <text class="agreement-title">《元数启技术转移撮合服务协议》</text>
+        <text class="agreement-section">版本：YSQ-2026-06-01-v2。本协议用于试用版线上确认，正式成交前可根据实际合作主体、项目金额和交易结构另行签署正式书面协议。</text>
+        <text class="agreement-section">一、协议主体：甲方为提交技术成果、合作意向或委托撮合需求的来访者、个人、团队或单位。乙方为南通元数启科技有限公司及其授权服务人员。</text>
         <text class="agreement-section">二、服务内容：乙方提供需求检索、快速匹配、AI 智能匹配、匹配理由生成、合作意向收集、人工审核、需求方联系协调、沟通安排、材料流转和撮合跟进等技术经纪服务。</text>
         <text class="agreement-section">三、服务费用：甲方可免费查看平台生成的匹配结果。若经乙方推荐、介绍、协调或撮合达成实质性合作，甲方应按实际成交金额的 5% 向乙方支付技术撮合中介服务费。</text>
         <text class="agreement-section">四、防跳单约定：自乙方向甲方推荐、披露或协助接触某一需求方、需求项目、联系人或技术需求信息之日起 12 个月内，甲方不得绕开乙方私下与该需求方或其关联方就同一或实质相近项目达成合作。</text>
@@ -71,7 +71,7 @@
       <checkbox-group bindchange="agreementChange">
         <label class="check-row">
           <checkbox value="agree" checked="{{agreement}}" />
-          <text>我已完整阅读并同意《TechNexus 技术撮合中介服务协议》，确认通过平台撮合成交后按实际成交金额的 5% 支付技术撮合中介服务费。</text>
+          <text>我已完整阅读并同意《元数启技术转移撮合服务协议》，确认通过平台撮合成交后按实际成交金额的 5% 支付技术撮合中介服务费。</text>
         </label>
       </checkbox-group>
     </view>

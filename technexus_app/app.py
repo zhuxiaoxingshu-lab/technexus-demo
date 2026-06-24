@@ -408,6 +408,23 @@ def format_money(value: object) -> str:
     return f"{number:.0f}元"
 
 
+def public_demand_detail(demand: dict) -> str:
+    """Return public requirement text with demand-side identity data removed."""
+    detail = clean_text(demand.get("需求详情", ""))
+    if not detail:
+        return ""
+    for hidden_value in (demand.get("发布者", ""), demand.get("联系方式", "")):
+        hidden_text = clean_text(hidden_value)
+        if hidden_text:
+            detail = detail.replace(hidden_text, "（信息已隐藏）")
+    detail = re.sub(r"(?<!\d)1[3-9]\d{9}(?!\d)", "（手机号已隐藏）", detail)
+    detail = re.sub(r"(?<!\d)(?:0\d{2,3}[-－— ]?)?\d{7,8}(?!\d)", "（联系电话已隐藏）", detail)
+    detail = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "（邮箱已隐藏）", detail)
+    detail = re.sub(r"(?:联系人|联络人|负责人)\s*[:：]?\s*[\u4e00-\u9fff·]{2,10}", "联系人（姓名已隐藏）", detail)
+    detail = re.sub(r"(?:微信号?|QQ)\s*[:：]?\s*[A-Za-z0-9_-]{5,}", "社交账号（已隐藏）", detail, flags=re.IGNORECASE)
+    return detail
+
+
 def extract_ascii_tokens(text: str) -> list[str]:
     return re.findall(r"[a-zA-Z0-9][a-zA-Z0-9.+#/-]{1,}", text.lower())
 
@@ -851,6 +868,7 @@ def score_demand(submission: dict, demand: dict, *, tags: dict | None = None, re
     suggestion = build_suggestion(demand, matched_tags)
     return {
         **sanitize_demand(demand, include_detail=True),
+        "demand_detail": public_demand_detail(demand),
         "score": total,
         "structured_tags": compact_tag_payload(demand_tags),
         "matched_tags": compact_tag_payload(matched_tags),

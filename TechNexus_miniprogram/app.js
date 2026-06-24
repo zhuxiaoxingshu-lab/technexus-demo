@@ -1,6 +1,6 @@
 App({
   globalData: {
-    appName: "TechNexus技术经理人",
+    appName: "元数启技术转移",
     apiBase: "https://technexus-demo.onrender.com",
     matchMode: "ai",
     submission: {},

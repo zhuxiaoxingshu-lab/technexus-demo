@@ -751,6 +751,81 @@ textarea:focus {
   background: #fcfefd;
 }
 
+.demand-detail-card {
+  border: 1px solid #cfe4dd;
+  border-radius: 16px;
+  padding: 16px;
+  background: #f7fcfa;
+}
+
+.demand-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.demand-detail-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: #12806c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.demand-detail-head h3 {
+  margin: 0;
+  color: #153a32;
+  font-size: 17px;
+}
+
+.privacy-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #5c746d;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.privacy-note svg {
+  width: 15px;
+  height: 15px;
+}
+
+.demand-detail-text {
+  color: #31443f;
+  font-size: 14px;
+  line-height: 1.85;
+  white-space: pre-line;
+}
+
+.demand-detail-card.is-collapsed .demand-detail-text {
+  max-height: 154px;
+  overflow: hidden;
+}
+
+.demand-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--teal);
+  padding: 4px 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.demand-detail-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
 @media (max-width: 760px) {
   .result-meta-head {
     flex-direction: column;
@@ -762,6 +837,15 @@ textarea:focus {
 
   .tag-group-grid {
     grid-template-columns: 1fr;
+  }
+
+  .demand-detail-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .privacy-note {
+    white-space: normal;
   }
 }
 

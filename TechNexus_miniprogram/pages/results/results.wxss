@@ -1,1 +1,74 @@
 /* 匹配结果页样式主要复用全局 app.wxss */
+
+.demand-detail-card {
+  margin-top: 18rpx;
+  padding: 22rpx;
+  border: 1rpx solid #cfe4dd;
+  border-radius: 22rpx;
+  background: #f7fcfa;
+}
+
+.demand-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+
+.demand-detail-eyebrow,
+.demand-detail-title {
+  display: block;
+}
+
+.demand-detail-eyebrow {
+  color: #12806c;
+  font-size: 21rpx;
+  font-weight: 700;
+  margin-bottom: 6rpx;
+}
+
+.demand-detail-title {
+  color: #153a32;
+  font-size: 29rpx;
+  line-height: 1.4;
+  font-weight: 800;
+}
+
+.privacy-note {
+  max-width: 260rpx;
+  color: #61766f;
+  font-size: 20rpx;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.demand-detail-text {
+  display: block;
+  color: #31443f;
+  font-size: 25rpx;
+  line-height: 1.82;
+}
+
+.demand-detail-text.collapsed {
+  max-height: 228rpx;
+  overflow: hidden;
+}
+
+.detail-toggle {
+  display: inline-flex;
+  width: auto;
+  min-height: 60rpx;
+  margin: 12rpx 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  font-size: 23rpx;
+  line-height: 60rpx;
+  font-weight: 700;
+}
+
+.detail-toggle::after {
+  border: 0;
+}

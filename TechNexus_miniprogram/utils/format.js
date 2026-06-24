@@ -41,6 +41,7 @@ function dimensionsForResult(item) {
 
 function prepareResult(item, index) {
   const score = Number(item.score || 0);
+  const detailText = clean(item.demand_detail || item.detail_summary).trim();
   return {
     ...item,
     index,
@@ -48,7 +49,10 @@ function prepareResult(item, index) {
     level: scoreLevel(score),
     score_label: scoreLabel(score),
     tags: tagsForResult(item),
-    dimensions_list: dimensionsForResult(item)
+    dimensions_list: dimensionsForResult(item),
+    detail_text: detailText,
+    has_long_detail: detailText.length > 220,
+    detail_expanded: false
   };
 }
 

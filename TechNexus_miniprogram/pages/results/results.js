@@ -49,5 +49,14 @@ Page({
     const app = getApp();
     app.globalData.selectedResult = app.globalData.results[index];
     wx.navigateTo({ url: "/pages/intent/intent" });
+  },
+
+  toggleDemandDetail(event) {
+    const index = Number(event.currentTarget.dataset.index || 0);
+    const item = this.data.results[index];
+    if (!item) return;
+    this.setData({
+      [`results[${index}].detail_expanded`]: !item.detail_expanded
+    });
   }
 });

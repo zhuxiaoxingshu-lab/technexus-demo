@@ -92,15 +92,38 @@ function showView(id) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
-  const data = await response.json();
+  let response;
+  try {
+    response = await fetch(path, {
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      ...options,
+    });
+  } catch (error) {
+    throw new Error("暂时无法连接线上服务，请检查网络后重试。");
+  }
+
+  const responseText = await response.text();
+  let data = {};
+  if (responseText.trim()) {
+    try {
+      data = JSON.parse(responseText);
+    } catch (error) {
+      throw new Error("服务器返回内容不完整，请稍后重新匹配。");
+    }
+  }
   if (!response.ok) {
-    const error = new Error(data.message || "请求失败");
+    let message = data.message || "请求失败，请稍后重试。";
+    if (response.status === 503) {
+      message = "线上服务正在唤醒或重新部署，请等待约 30 秒后重新匹配。";
+    } else if (response.status === 502 || response.status === 504) {
+      message = "AI 匹配服务暂时超时，请稍后重试，也可以先选择“快速匹配”。";
+    }
+    const error = new Error(message);
     error.status = response.status;
     throw error;
+  }
+  if (!responseText.trim()) {
+    throw new Error("服务器未返回匹配结果，请稍后重新匹配。");
   }
   return data;
 }

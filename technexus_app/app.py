@@ -1167,10 +1167,6 @@ class DemandStore:
     def reload(self) -> None:
         self.load()
 
-    def warm_technical_profiles(self) -> None:
-        for demand in self.demands:
-            ensure_demand_technical_profile(demand)
-
     def refresh_if_changed(self, *, min_interval: float = 60.0) -> None:
         now = time.time()
         if now - self._last_refresh_check < min_interval:
@@ -1837,18 +1833,45 @@ def match_demands(
             )
         ),
     }
-    scored_candidates: list[tuple[float, dict]] = []
+    coarse_candidates: list[tuple[float, dict]] = []
     for demand in store.demands:
+        demand_tags = normalize_tag_payload(demand.get("_structured_tags"))
+        lexical = cosine(profile_tokens["all"], demand.get("_tokens", Counter()))
+        tag_score = (
+            len(overlap_tags(tags.get("tech_tags", []), demand_tags.get("tech_tags", []))) * 0.08
+            + len(overlap_tags(tags.get("scene_tags", []), demand_tags.get("scene_tags", []))) * 0.06
+            + len(overlap_tags(tags.get("industry_tags", []), demand_tags.get("industry_tags", []))) * 0.035
+            + len(overlap_tags(tags.get("keywords", []), demand_tags.get("keywords", []), limit=8)) * 0.025
+        )
+        function_score = (
+            len(
+                set(profile_tokens.get("function_anchors", set()))
+                & extract_functional_anchors(demand.get("_search_text", ""))
+            )
+            * 0.16
+        )
+        coarse_score = lexical + tag_score + function_score
+        if coarse_score > 0:
+            coarse_candidates.append((coarse_score, demand))
+
+    coarse_candidates.sort(key=lambda item: item[0], reverse=True)
+    coarse_limit = min(len(coarse_candidates), max(candidate_limit * 3, 600))
+    technical_candidates: list[tuple[float, dict]] = []
+    for _, original_demand in coarse_candidates[:coarse_limit]:
+        demand = dict(original_demand)
         ensure_demand_technical_profile(demand)
         base = recall_score_demand(submission, demand, tags, capability_profile, profile_tokens)
-        if base > 0 or not any(tags.values()):
-            scored_candidates.append((base, demand))
+        if base > 0:
+            technical_candidates.append((base, demand))
 
-    if any(tags.values()):
-        scored_candidates.sort(key=lambda item: item[0], reverse=True)
-        candidates = scored_candidates[:candidate_limit]
-    else:
-        candidates = [(0.0, demand) for demand in store.demands[:candidate_limit]]
+    technical_candidates.sort(key=lambda item: item[0], reverse=True)
+    candidates = technical_candidates[:candidate_limit]
+    if not candidates:
+        candidates = []
+        for original_demand in store.demands[:candidate_limit]:
+            demand = dict(original_demand)
+            ensure_demand_technical_profile(demand)
+            candidates.append((0.0, demand))
 
     results = [
         score_demand(
@@ -3727,6 +3750,21 @@ class TechNexusHandler(BaseHTTPRequestHandler):
         self.send_error_json(HTTPStatus.NOT_FOUND, "未找到页面")
 
     def do_POST(self) -> None:
+        try:
+            self.handle_post_request()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except Exception as exc:
+            self.log_error("POST %s failed: %s", self.path, exc)
+            try:
+                self.send_error_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    "服务器处理匹配请求时出现异常，请稍后重试；您填写的内容不会在前台公开。",
+                )
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                return
+
+    def handle_post_request(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/admin/login":
             payload = self.read_json()
@@ -4041,11 +4079,6 @@ def run(host: str, port: int, open_browser: bool) -> None:
     TechNexusHandler.ai_config = ai_config
     TechNexusHandler.admin_config = admin_config
     server = ThreadingHTTPServer((host, port), TechNexusHandler)
-    threading.Thread(
-        target=store.warm_technical_profiles,
-        name="technexus-profile-warmup",
-        daemon=True,
-    ).start()
     url = f"http://{host}:{port}/"
     print(f"TechNexus 技术经理人试用版已启动：{url}")
     print(f"已读取需求库：{len(store.demands)} 条")

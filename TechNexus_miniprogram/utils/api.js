@@ -13,9 +13,21 @@ function request(path, options = {}) {
         "content-type": "application/json"
       },
       success(res) {
-        const data = res.data || {};
+        const data = res.data && typeof res.data === "object" ? res.data : {};
         if (res.statusCode >= 200 && res.statusCode < 300) {
+          if (!res.data) {
+            reject(new Error("服务器未返回匹配结果，请稍后重新匹配。"));
+            return;
+          }
           resolve(data);
+          return;
+        }
+        if (res.statusCode === 503) {
+          reject(new Error("线上服务正在唤醒或重新部署，请等待约 30 秒后重新匹配。"));
+          return;
+        }
+        if (res.statusCode === 502 || res.statusCode === 504) {
+          reject(new Error("AI 匹配服务暂时超时，请稍后重试，也可以先选择快速匹配。"));
           return;
         }
         reject(new Error(data.message || `请求失败：${res.statusCode}`));

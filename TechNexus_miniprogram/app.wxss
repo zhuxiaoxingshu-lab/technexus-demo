@@ -692,16 +692,16 @@ button::after {
 }
 
 .score {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 60rpx;
+  width: 146rpx;
+  height: 146rpx;
+  border-radius: 73rpx;
   background: #dff5ed;
   color: #0c5f59;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 34rpx;
+  font-size: 32rpx;
   font-weight: 900;
   flex: 0 0 auto;
 }
@@ -709,7 +709,8 @@ button::after {
 .score-caption {
   display: block;
   margin-top: 4rpx;
-  font-size: 20rpx;
+  max-width: 118rpx;
+  font-size: 18rpx;
   line-height: 1.25;
   font-weight: 700;
 }

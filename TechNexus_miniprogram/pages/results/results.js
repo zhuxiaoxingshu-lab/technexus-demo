@@ -4,12 +4,12 @@ function modeMeta(mode) {
   if (mode === "quick") {
     return {
       title: "快速匹配结果",
-      copy: "不调用外部 API，先用本地规则筛出大致方向，适合快速初判。"
+      copy: "不调用外部 API，按技术标的、核心问题、技术路线和指标约束完成快速初判。"
     };
   }
   return {
     title: "AI 智能匹配结果",
-    copy: "调用 DeepSeek API 对候选需求做精排，并给出更细的匹配理由与建议。"
+    copy: "先生成成果能力画像，再调用 DeepSeek 对需求技术任务进行可行性精排。"
   };
 }
 

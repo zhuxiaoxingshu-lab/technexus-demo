@@ -5,6 +5,9 @@ function hasUsefulContent(payload) {
     payload.title,
     payload.tech_field,
     payload.summary,
+    payload.technical_route,
+    payload.indicators,
+    payload.evidence,
     payload.application_scene,
     payload.advantages,
     payload.problem

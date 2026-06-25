@@ -157,8 +157,8 @@ function setMatchMode(mode) {
   if (hint) {
     hint.textContent =
       state.matchMode === "quick"
-        ? "快速匹配不会调用 DeepSeek API，会先做本地标签抽取，再按规则扩大召回并排序。"
-        : "AI 智能匹配会先抽取标准标签，再扩大候选召回，最后调用 DeepSeek 做精排和理由解释。";
+        ? "快速匹配不会调用 DeepSeek API，会用本地规则拆解技术标的、核心问题、技术路线和指标后完成初筛。"
+        : "AI 智能匹配会先生成成果能力画像，再按需求正文召回候选，最后进行技术可行性精排。";
   }
   const submitButton = $("#submit-match");
   if (submitButton) {
@@ -184,8 +184,8 @@ async function runMatch(payload, button) {
   setButtonLoading(button, true, state.matchMode === "quick" ? "快速匹配中" : "AI匹配中");
   $("#result-status").textContent =
     state.matchMode === "quick"
-      ? "正在进行快速匹配：先抽取本地标签，再扩大候选召回..."
-      : "正在进行 AI 智能匹配：先做标签抽取，再调用 DeepSeek 精排...";
+      ? "正在进行快速匹配：拆解技术标的、核心问题、技术路线和指标..."
+      : "正在进行 AI 智能匹配：生成成果能力画像并评估需求技术任务...";
   $("#result-status").style.display = "block";
   renderResultMeta({});
   $("#result-list").innerHTML = "";
@@ -273,11 +273,12 @@ function renderResultMeta(meta = state.matchMeta) {
   if (!box) return;
   const tags = meta?.structured_tags || meta?.tag_extraction?.merged_tags || {};
   const groups = collectTagGroups(tags);
+  const profile = meta?.capability_profile || meta?.tag_extraction?.capability_profile || {};
   const sourceTags = meta?.used_ai
-    ? ["AI标签抽取", "扩大候选召回", "DeepSeek精排"]
+    ? ["成果能力画像", "技术任务召回", "AI技术精排"]
     : meta?.tag_extraction?.used_ai
-      ? ["AI标签抽取", "扩大候选召回", "规则排序"]
-      : ["本地标签抽取", "扩大候选召回", "规则排序"];
+      ? ["成果能力画像", "技术任务召回", "规则评分"]
+      : ["本地能力画像", "技术任务召回", "规则评分"];
   const message =
     meta?.message ||
     (meta?.used_ai
@@ -293,13 +294,27 @@ function renderResultMeta(meta = state.matchMeta) {
     <div class="result-meta-card">
       <div class="result-meta-head">
         <div>
-          <h3>本次识别标签</h3>
+          <h3>本次成果能力画像</h3>
           <p>${escapeHtml(message)}</p>
         </div>
         <div class="tags meta-source-tags">
           ${sourceTags.map((item) => tag(item, "meta-tag")).join("")}
         </div>
       </div>
+      ${
+        profile.target || profile.core_problem || profile.technical_route
+          ? `<div class="capability-profile-grid">
+              ${profile.target ? `<div><span>技术标的</span><strong>${escapeHtml(profile.target)}</strong></div>` : ""}
+              ${profile.core_problem ? `<div><span>能够解决的问题</span><strong>${escapeHtml(profile.core_problem)}</strong></div>` : ""}
+              ${profile.technical_route ? `<div><span>技术路线</span><strong>${escapeHtml(profile.technical_route)}</strong></div>` : ""}
+              ${
+                normalizeTagValues(profile.indicators).length
+                  ? `<div><span>已提供指标</span><strong>${escapeHtml(normalizeTagValues(profile.indicators).join("；"))}</strong></div>`
+                  : ""
+              }
+            </div>`
+          : ""
+      }
       ${
         groups.length
           ? `
@@ -362,31 +377,74 @@ function renderDemandDetail(item, index) {
   `;
 }
 
+function renderAssessmentList(label, values, className = "") {
+  const items = normalizeTagValues(values);
+  if (!items.length) return "";
+  return `
+    <div class="assessment-list ${className}">
+      <span>${escapeHtml(label)}</span>
+      <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    </div>
+  `;
+}
+
+function renderTechnicalAssessment(item) {
+  return `
+    <section class="technical-assessment">
+      <div class="assessment-head">
+        <div>
+          <span class="demand-detail-eyebrow">技术可行性判断</span>
+          <h3>${escapeHtml(item.match_type || "需验证")}</h3>
+        </div>
+        <div class="confidence-badge">
+          <strong>${escapeHtml(item.confidence ?? "-")}</strong>
+          <span>判断可信度</span>
+        </div>
+      </div>
+      <div class="assessment-grid">
+        <div><span>需求技术标的</span><strong>${escapeHtml(item.technical_target || "-")}</strong></div>
+        <div><span>需求核心问题</span><strong>${escapeHtml(item.core_problem || "-")}</strong></div>
+        <div><span>成果对应能力</span><strong>${escapeHtml(item.matched_capability || "-")}</strong></div>
+        ${
+          item.transfer_path
+            ? `<div><span>技术迁移路径</span><strong>${escapeHtml(item.transfer_path)}</strong></div>`
+            : ""
+        }
+      </div>
+      <div class="assessment-lists">
+        ${renderAssessmentList("已识别对应点", item.verified_items, "verified")}
+        ${renderAssessmentList("尚待验证", item.unverified_items, "unverified")}
+        ${renderAssessmentList("硬性冲突", item.hard_conflicts, "conflict")}
+      </div>
+      ${item.hard_gate ? `<div class="hard-gate-note">评分限制：${escapeHtml(item.hard_gate)}</div>` : ""}
+    </section>
+  `;
+}
+
 function scoreLevel(score) {
 
   const value = Number(score || 0);
-  if (value >= 90) return "excellent";
-  if (value >= 80) return "high";
-  if (value >= 70) return "medium";
-  if (value >= 60) return "low";
+  if (value >= 80) return "excellent";
+  if (value >= 65) return "high";
+  if (value >= 45) return "medium";
+  if (value >= 35) return "low";
   return "weak";
 }
 
 function scoreLabel(score) {
   const value = Number(score || 0);
-  if (value >= 90) return "高度匹配";
-  if (value >= 80) return "较高匹配";
-  if (value >= 70) return "可进一步确认";
-  if (value >= 60) return "参考匹配";
-  return "弱匹配";
+  if (value >= 80) return "建议优先对接";
+  if (value >= 65) return "建议补充材料";
+  if (value >= 45) return "建议进一步核验";
+  return "暂不推荐";
 }
 
 function renderResults(results) {
   const status = $("#result-status");
   const list = $("#result-list");
   if (!results.length) {
-    renderResultMeta({});
-    status.textContent = "暂未找到匹配需求，可以补充技术领域、应用场景或技术摘要后重试。";
+    renderResultMeta();
+    status.textContent = "暂未找到技术匹配度达到45分的需求。建议补充技术原理、可解决的问题、量化指标、样品或案例后重试。";
     status.style.display = "block";
     list.innerHTML = "";
     return;
@@ -415,13 +473,15 @@ function renderResults(results) {
             <div class="score score-${level}">${escapeHtml(item.score)}%<small>${scoreLabel(item.score)}</small></div>
           </div>
           <div class="score-stack">
-            ${scoreBar("技术领域", dims["技术领域"])}
-            ${scoreBar("应用场景", dims["应用场景"])}
-            ${scoreBar("产业方向", dims["产业方向"])}
-            ${scoreBar("成熟度", dims["成熟度"])}
+            ${scoreBar("核心问题", dims["核心问题"])}
+            ${scoreBar("技术标的", dims["技术标的"])}
+            ${scoreBar("技术路线", dims["技术路线"])}
+            ${scoreBar("指标约束", dims["指标约束"])}
+            ${scoreBar("交付成熟度", dims["交付成熟度"])}
           </div>
           ${renderMatchedTagSummary(item)}
           ${renderDemandDetail(item, index)}
+          ${renderTechnicalAssessment(item)}
           <div class="reason">${escapeHtml(item.reason)}</div>
           <div class="suggestion">${escapeHtml(item.suggestion)}</div>
           <div class="top-actions left">

@@ -6,7 +6,7 @@
       <view>
         <text class="eyebrow">{{modeTitle}}</text>
         <view class="hero-main">
-          <text class="hero-title">返回 5 条以内候选需求，只展示能判断合作价值的信息</text>
+          <text class="hero-title">返回 5 条以内技术可行性候选，只展示有具体对应证据的需求</text>
           <text class="hero-copy">{{modeCopy}} 匹配结果会展示具体技术需求，但不展示需求方身份及联系方式；如需继续推进，请提交合作意向进入后台人工撮合。</text>
         </view>
       </view>
@@ -34,14 +34,14 @@
   <view class="band">
     <view class="band-header">
       <text class="section-title">{{modeTitle}}</text>
-      <text class="muted">最多展示 5 条需求，展示匹配分、具体技术需求、理由和合作建议，不展示需求方身份及联系方式。</text>
+      <text class="muted">行业标签仅用于召回，最终按技术标的、核心问题、技术路线、指标约束和交付能力评分。</text>
     </view>
     <view class="actions">
       <button class="btn ghost" bindtap="goSubmit">修改成果</button>
     </view>
   </view>
 
-  <view wx:if="{{!results.length}}" class="empty">暂无匹配结果。请先提交技术成果，系统会返回最适合撮合的技术需求。</view>
+  <view wx:if="{{!results.length}}" class="empty">暂未找到技术匹配度达到 45 分的需求。建议补充技术原理、量化指标、样品或案例后重试。</view>
 
   <view wx:for="{{results}}" wx:key="index" wx:for-index="rank" class="result-card {{item.level}}">
     <view class="result-rank">TOP {{rank + 1}}</view>
@@ -79,6 +79,47 @@
         data-index="{{item.index}}"
         bindtap="toggleDemandDetail"
       >{{item.detail_expanded ? '收起' : '展开全部'}}</button>
+    </view>
+    <view class="technical-assessment">
+      <view class="assessment-head">
+        <view>
+          <text class="demand-detail-eyebrow">技术可行性判断</text>
+          <text class="assessment-title">{{item.match_type || '需验证'}}</text>
+        </view>
+        <view class="confidence-badge">
+          <text class="confidence-number">{{item.confidence}}</text>
+          <text class="confidence-label">判断可信度</text>
+        </view>
+      </view>
+      <view class="assessment-item">
+        <text class="assessment-label">需求技术标的</text>
+        <text class="assessment-value">{{item.technical_target || '-'}}</text>
+      </view>
+      <view class="assessment-item">
+        <text class="assessment-label">需求核心问题</text>
+        <text class="assessment-value">{{item.core_problem || '-'}}</text>
+      </view>
+      <view class="assessment-item">
+        <text class="assessment-label">成果对应能力</text>
+        <text class="assessment-value">{{item.matched_capability || '-'}}</text>
+      </view>
+      <view wx:if="{{item.transfer_path}}" class="assessment-item">
+        <text class="assessment-label">技术迁移路径</text>
+        <text class="assessment-value">{{item.transfer_path}}</text>
+      </view>
+      <view wx:if="{{item.verified_items.length}}" class="assessment-list verified">
+        <text class="assessment-label">已识别对应点</text>
+        <text wx:for="{{item.verified_items}}" wx:key="*this" class="assessment-list-item">· {{item}}</text>
+      </view>
+      <view wx:if="{{item.unverified_items.length}}" class="assessment-list unverified">
+        <text class="assessment-label">尚待验证</text>
+        <text wx:for="{{item.unverified_items}}" wx:key="*this" class="assessment-list-item">· {{item}}</text>
+      </view>
+      <view wx:if="{{item.hard_conflicts.length}}" class="assessment-list conflict">
+        <text class="assessment-label">硬性冲突</text>
+        <text wx:for="{{item.hard_conflicts}}" wx:key="*this" class="assessment-list-item">· {{item}}</text>
+      </view>
+      <view wx:if="{{item.hard_gate}}" class="hard-gate-note">评分限制：{{item.hard_gate}}</view>
     </view>
     <view class="reason">{{item.reason || '暂无匹配理由，建议由平台人工复核。'}}</view>
     <view class="suggestion">{{item.suggestion || '建议补充成果指标、成熟度和合作方式后继续撮合。'}}</view>

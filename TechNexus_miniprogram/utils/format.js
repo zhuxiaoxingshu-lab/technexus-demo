@@ -4,18 +4,18 @@ function clean(value) {
 
 function scoreLevel(score) {
   const value = Number(score || 0);
-  if (value >= 90) return "excellent";
-  if (value >= 80) return "high";
-  if (value >= 70) return "medium";
+  if (value >= 80) return "excellent";
+  if (value >= 65) return "high";
+  if (value >= 45) return "medium";
   return "low";
 }
 
 function scoreLabel(score) {
   const value = Number(score || 0);
-  if (value >= 90) return "高度匹配";
-  if (value >= 80) return "较高匹配";
-  if (value >= 70) return "可继续看";
-  return "待人工判断";
+  if (value >= 80) return "建议优先对接";
+  if (value >= 65) return "建议补充材料";
+  if (value >= 45) return "建议进一步核验";
+  return "暂不推荐";
 }
 
 function tagsForResult(item) {
@@ -32,10 +32,11 @@ function tagsForResult(item) {
 function dimensionsForResult(item) {
   const dims = item.dimensions || {};
   return [
-    { name: "技术领域", value: Number(dims["技术领域"] || 0) },
-    { name: "应用场景", value: Number(dims["应用场景"] || 0) },
-    { name: "产业方向", value: Number(dims["产业方向"] || 0) },
-    { name: "成熟度", value: Number(dims["成熟度"] || 0) }
+    { name: "核心问题", value: Number(dims["核心问题"] || 0) },
+    { name: "技术标的", value: Number(dims["技术标的"] || 0) },
+    { name: "技术路线", value: Number(dims["技术路线"] || 0) },
+    { name: "指标约束", value: Number(dims["指标约束"] || 0) },
+    { name: "交付成熟度", value: Number(dims["交付成熟度"] || 0) }
   ];
 }
 
@@ -50,6 +51,10 @@ function prepareResult(item, index) {
     score_label: scoreLabel(score),
     tags: tagsForResult(item),
     dimensions_list: dimensionsForResult(item),
+    confidence: Number(item.confidence || 0),
+    verified_items: Array.isArray(item.verified_items) ? item.verified_items : [],
+    unverified_items: Array.isArray(item.unverified_items) ? item.unverified_items : [],
+    hard_conflicts: Array.isArray(item.hard_conflicts) ? item.hard_conflicts : [],
     detail_text: detailText,
     has_long_detail: detailText.length > 220,
     detail_expanded: false

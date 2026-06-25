@@ -522,7 +522,7 @@ def load_ai_config() -> dict:
         "api_key": "",
         "model": "",
         "temperature": 0.2,
-        "timeout": 45,
+        "timeout": 50,
     }
     if AI_CONFIG_FILE.exists():
         try:

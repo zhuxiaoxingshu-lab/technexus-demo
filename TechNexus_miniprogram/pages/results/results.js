@@ -9,7 +9,7 @@ function modeMeta(mode) {
   }
   return {
     title: "AI 智能匹配结果",
-    copy: "先生成成果能力画像，再调用 DeepSeek 对需求技术任务进行可行性精排。"
+    copy: "先在本地筛选候选，再由 DeepSeek 一次完成成果画像校正和前 6 条需求复核。"
   };
 }
 
@@ -27,11 +27,12 @@ Page({
     const results = (app.globalData.results || []).map((item, index) => prepareResult(item, index));
     const matchMode = app.globalData.matchMode || "ai";
     const meta = modeMeta(matchMode);
+    const matchMeta = app.globalData.matchMeta || {};
     this.setData({
       results,
       matchMode,
       modeTitle: meta.title,
-      modeCopy: meta.copy,
+      modeCopy: matchMeta.message || meta.copy,
       resultCountText: String(results.length || 0)
     });
   },

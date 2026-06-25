@@ -47,10 +47,16 @@ Page({
       title: this.data.matchMode === "quick" ? "快速匹配中" : "AI匹配中",
       mask: true
     });
+    const progressTimer = this.data.matchMode === "ai"
+      ? setTimeout(() => {
+          wx.showLoading({ title: "AI复核中", mask: true });
+        }, 8000)
+      : null;
 
     api.matchDemands(payload)
       .then((response) => {
         app.globalData.submissionId = response.submission_id || "";
+        app.globalData.matchMeta = response.ai_meta || {};
         app.globalData.results = response.results || [];
         wx.navigateTo({ url: "/pages/results/results" });
       })
@@ -58,6 +64,7 @@ Page({
         wx.showToast({ title: error.message || "匹配失败", icon: "none", duration: 3000 });
       })
       .finally(() => {
+        if (progressTimer) clearTimeout(progressTimer);
         wx.hideLoading();
         this.setData({ loading: false });
       });

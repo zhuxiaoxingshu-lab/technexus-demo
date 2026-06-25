@@ -181,7 +181,7 @@ function setMatchMode(mode) {
     hint.textContent =
       state.matchMode === "quick"
         ? "快速匹配不会调用 DeepSeek API，会用本地规则拆解技术标的、核心问题、技术路线和指标后完成初筛。"
-        : "AI 智能匹配会先生成成果能力画像，再按需求正文召回候选，最后进行技术可行性精排。";
+        : "AI 智能匹配会先在本地筛选候选，再由 DeepSeek 一次完成成果画像校正和前 6 条需求复核。";
   }
   const submitButton = $("#submit-match");
   if (submitButton) {
@@ -208,10 +208,24 @@ async function runMatch(payload, button) {
   $("#result-status").textContent =
     state.matchMode === "quick"
       ? "正在进行快速匹配：拆解技术标的、核心问题、技术路线和指标..."
-      : "正在进行 AI 智能匹配：生成成果能力画像并评估需求技术任务...";
+      : "第 1 步：正在解析成果并生成初步能力画像...";
   $("#result-status").style.display = "block";
   renderResultMeta({});
   $("#result-list").innerHTML = "";
+  let progressTimer = null;
+  if (state.matchMode === "ai") {
+    const progressMessages = [
+      "第 2 步：正在从需求库召回并筛选前 20 条候选...",
+      "第 3 步：正在由 DeepSeek 复核前 6 条候选需求...",
+    ];
+    let progressIndex = 0;
+    progressTimer = window.setInterval(() => {
+      if (progressIndex < progressMessages.length) {
+        $("#result-status").textContent = progressMessages[progressIndex];
+        progressIndex += 1;
+      }
+    }, 6000);
+  }
   try {
     const response = await api("/api/match", {
       method: "POST",
@@ -232,6 +246,7 @@ async function runMatch(payload, button) {
     $("#result-status").textContent = error.message;
     toast(error.message);
   } finally {
+    if (progressTimer) window.clearInterval(progressTimer);
     setButtonLoading(button, false);
   }
 }

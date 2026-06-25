@@ -5,6 +5,7 @@ App({
     matchMode: "ai",
     submission: {},
     submissionId: "",
+    matchMeta: {},
     results: [],
     selectedResult: null,
     lastQueryCode: ""

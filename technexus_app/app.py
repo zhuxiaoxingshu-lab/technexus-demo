@@ -537,6 +537,7 @@ def load_ai_config() -> dict:
         "TECHNEXUS_AI_API_KEY": "api_key",
         "TECHNEXUS_AI_MODEL": "model",
         "TECHNEXUS_AI_PROVIDER": "provider",
+        "TECHNEXUS_AI_TIMEOUT": "timeout",
     }
     for env_name, key in env_map.items():
         if os.getenv(env_name):
@@ -2166,17 +2167,33 @@ def compact_submission(submission: dict) -> dict:
     return {
         "成果名称": clean_text(submission.get("title")),
         "技术领域": clean_text(submission.get("tech_field")),
-        "应用场景": clean_text(submission.get("application_scene")),
-        "技术成果摘要": clip(submission.get("summary", ""), 500),
-        "技术路线": clip(submission.get("technical_route", ""), 400),
-        "量化指标": clip(submission.get("indicators", ""), 400),
-        "验证证据": clip(submission.get("evidence", ""), 400),
-        "核心优势": clip(submission.get("advantages", ""), 300),
-        "解决问题": clip(submission.get("problem", ""), 300),
+        "应用场景": clip(submission.get("application_scene", ""), 180),
+        "技术成果摘要": clip(submission.get("summary", ""), 300),
+        "技术路线": clip(submission.get("technical_route", ""), 260),
+        "量化指标": clip(submission.get("indicators", ""), 220),
+        "验证证据": clip(submission.get("evidence", ""), 220),
+        "核心优势": clip(submission.get("advantages", ""), 180),
+        "解决问题": clip(submission.get("problem", ""), 220),
         "成熟度": clean_text(submission.get("maturity")),
         "合作方式": clean_text(submission.get("cooperation")),
         "所在地区": clean_text(submission.get("region")),
-        "补充说明或相关链接": clip(submission.get("extra_note") or submission.get("attachment_note", ""), 300),
+        "补充说明或相关链接": clip(submission.get("extra_note") or submission.get("attachment_note", ""), 160),
+    }
+
+
+def compact_ai_technical_profile(profile: dict | None) -> dict:
+    normalized = normalize_technical_profile(profile)
+    return {
+        "target": clip(normalized.get("target", ""), 160),
+        "core_problem": clip(normalized.get("core_problem", ""), 280),
+        "required_functions": (normalized.get("required_functions") or [])[:4],
+        "technical_route": clip(normalized.get("technical_route", ""), 300),
+        "indicators": (normalized.get("indicators") or [])[:5],
+        "constraints": [clip(item, 140) for item in (normalized.get("constraints") or [])[:4]],
+        "application_object": clip(normalized.get("application_object", ""), 160),
+        "deliverables": (normalized.get("deliverables") or [])[:4],
+        "evidence": [clip(item, 140) for item in (normalized.get("evidence") or [])[:3]],
+        "maturity": clean_text(normalized.get("maturity", "")),
     }
 
 
@@ -2184,19 +2201,16 @@ def compact_candidate(result: dict) -> dict:
     return {
         "需求ID": result.get("demand_id", ""),
         "需求名称": result.get("name", ""),
-        "技术领域": result.get("tech_field", ""),
+        "技术领域": clip(result.get("tech_field", ""), 160),
         "需求类型": result.get("demand_type", ""),
-        "所在地区": result.get("region", ""),
         "合作方式": result.get("cooperation_mode", ""),
-        "意向投入": result.get("intended_price", ""),
-        "需求技术任务书": result.get("technical_profile") or {},
-        "需求正文": clip(result.get("demand_detail") or result.get("detail_summary", ""), 900),
+        "需求技术任务书": compact_ai_technical_profile(result.get("technical_profile") or {}),
+        "关键需求原文": clip(result.get("demand_detail") or result.get("detail_summary", ""), 400),
         "本地匹配分": result.get("score", 0),
         "本地判断可信度": result.get("confidence", 0),
         "本地匹配类型": result.get("match_type", ""),
         "本地硬门槛": result.get("hard_gate", ""),
         "本地维度评分": result.get("dimensions", {}),
-        "本地匹配理由": clip(result.get("reason", ""), 180),
     }
 
 
@@ -2207,7 +2221,9 @@ def build_ai_messages(
     capability_profile: dict | None = None,
 ) -> list[dict]:
     system_prompt = """
-你是技术转移平台的高级技术经理人与可行性评审专家。你的任务不是判断双方是否属于同一行业，而是判断成果能力能否解决需求正文中的具体技术任务。
+你是技术转移平台的高级技术经理人与可行性评审专家。请在一次处理中完成两项任务：
+1. 根据用户原始材料校正本地生成的成果能力画像。
+2. 判断成果能力能否解决每条候选需求正文中的具体技术任务并完成精排。
 
 请逐条比较：
 1. 核心问题匹配（25%）：成果是否解决需求真正的技术瓶颈。
@@ -2231,8 +2247,21 @@ def build_ai_messages(
 - 总分、可信度和五个维度分数均为 0 到 100 的整数。
 - reason 要像技术经理人写给用户看的中文说明，具体但简洁。
 - suggestion 要给出下一步撮合建议。
+- 只评估给出的候选需求，不扩写背景知识。每项说明尽量控制在80字以内。
 - 必须输出合法 json，格式如下：
 {
+  "capability_profile": {
+    "target": "成果实际作用或交付的对象",
+    "core_problem": "成果已经能够解决的具体技术问题",
+    "required_functions": ["最多4项"],
+    "technical_route": "底层机理、材料、工艺、算法或装备路线",
+    "indicators": ["材料中明确提供的量化指标，最多5项"],
+    "constraints": ["适用边界或限制，最多4项"],
+    "application_object": "适用产品、设备、材料或环境",
+    "deliverables": ["样品、配方、设备、系统、工艺包等，最多4项"],
+    "evidence": ["样品、检测或案例等明确证据，最多3项"],
+    "maturity": "概念、实验室、小试、中试或量产"
+  },
   "results": [
     {
       "demand_id": "候选需求ID",
@@ -2255,11 +2284,17 @@ def build_ai_messages(
 """
     payload = {
         "submission": compact_submission(submission),
-        "capability_profile": normalize_technical_profile(capability_profile or build_submission_technical_profile(submission)),
+        "local_capability_profile": compact_ai_technical_profile(
+            capability_profile or build_submission_technical_profile(submission)
+        ),
         "structured_tags": compact_tag_payload(tag_profile),
         "candidates": [compact_candidate(item) for item in local_results],
     }
-    user_prompt = "请对以下候选需求做 AI 精排，并只输出 json：\n" + json.dumps(payload, ensure_ascii=False)
+    user_prompt = "请校正成果能力画像并对以下候选需求做技术精排，只输出 json：\n" + json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
@@ -2362,12 +2397,21 @@ def refine_matches_with_ai(
             "used_ai": False,
             "match_mode": "ai",
             "message": "未配置 DeepSeek API，已使用本地技术任务解析与五维评分。",
+            "capability_profile": normalize_technical_profile(capability_profile),
         }
 
     try:
-        messages = build_ai_messages(submission, local_results, tag_profile, capability_profile)
-        content = deepseek_chat(config, messages, max_tokens=5200)
-        ai_payload = parse_json_object_with_ai(config, content, task_name="AI精排")
+        ai_candidates = local_results[:6]
+        messages = build_ai_messages(submission, ai_candidates, tag_profile, capability_profile)
+        content = deepseek_chat(config, messages, max_tokens=2800)
+        # Keep the optimized path to exactly one external AI call. If the model
+        # returns malformed JSON, fall back to local scoring instead of making
+        # a second repair request.
+        ai_payload = parse_json_object(content)
+        corrected_profile = merge_technical_profiles(
+            normalize_technical_profile(capability_profile),
+            normalize_technical_profile(ai_payload.get("capability_profile")),
+        )
         refined = merge_ai_results(local_results, ai_payload, config)
         ai_ranked_count = sum(
             1 for item in refined if item.get("scoring_source") == "成果能力画像 + AI技术精排"
@@ -2378,27 +2422,38 @@ def refine_matches_with_ai(
             return local_results, {
                 "used_ai": False,
                 "match_mode": "ai",
-                "message": "已使用 DeepSeek 完成成果能力画像，但精排结果未命中候选需求，已退回本地技术任务评分。",
+                "message": "AI 深度复核未返回有效候选，当前展示本地技术评分结果。",
                 "model": clean_text(config.get("model", "")),
                 "tag_extraction": tag_meta or {},
                 "structured_tags": compact_tag_payload(tag_profile),
+                "capability_profile": corrected_profile,
+                "ai_candidate_count": len(ai_candidates),
             }
         return refined, {
             "used_ai": True,
             "match_mode": "ai",
-            "message": "已根据成果能力画像、需求技术标的、核心问题、技术路线和指标约束完成 AI 技术精排。",
+            "message": "已完成成果能力画像校正，并对前 6 条候选需求进行 AI 技术复核。",
             "model": clean_text(config.get("model", "")),
             "tag_extraction": tag_meta or {},
             "structured_tags": compact_tag_payload(tag_profile),
-            "capability_profile": normalize_technical_profile(capability_profile),
+            "capability_profile": corrected_profile,
+            "ai_candidate_count": len(ai_candidates),
         }
     except Exception as exc:
+        print(f"DeepSeek AI review failed: {exc}")
         for item in local_results:
             item["scoring_source"] = "本地技术任务评分"
+        lowered_error = str(exc).lower()
+        if "timed out" in lowered_error or "timeout" in lowered_error:
+            message = "AI 深度复核暂未在时限内完成，当前展示本地技术评分结果，可稍后重新复核。"
+        else:
+            message = "AI 深度复核暂时不可用，当前展示本地技术评分结果。"
         return local_results, {
             "used_ai": False,
             "match_mode": "ai",
-            "message": f"DeepSeek AI 精排失败，已自动退回本地规则：{exc}",
+            "message": message,
+            "capability_profile": normalize_technical_profile(capability_profile),
+            "ai_candidate_count": min(6, len(local_results)),
         }
 
 
@@ -3810,26 +3865,20 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             }
             local_tag_profile = extract_submission_tags_local(submission)
             local_capability_profile = build_submission_technical_profile(submission)
-            if match_mode == "quick":
-                tag_profile = local_tag_profile
-                capability_profile = local_capability_profile
-                tag_meta = {
-                    "used_ai": False,
-                    "source": "local",
-                    "local_tags": compact_tag_payload(local_tag_profile),
-                    "merged_tags": compact_tag_payload(local_tag_profile),
-                    "capability_profile": capability_profile,
-                    "message": "已使用本地规则生成成果能力画像。",
-                }
-            else:
-                tag_profile, tag_meta = extract_tags_with_ai(self.ai_config, submission, local_tag_profile)
-                capability_profile = normalize_technical_profile(
-                    tag_meta.get("capability_profile") or local_capability_profile
-                )
+            tag_profile = local_tag_profile
+            capability_profile = local_capability_profile
+            tag_meta = {
+                "used_ai": False,
+                "source": "local",
+                "local_tags": compact_tag_payload(local_tag_profile),
+                "merged_tags": compact_tag_payload(local_tag_profile),
+                "capability_profile": capability_profile,
+                "message": "已使用本地规则生成初步成果能力画像与召回标签。",
+            }
             local_results = match_demands(
                 self.store,
                 submission,
-                limit=12,
+                limit=20,
                 candidate_limit=220,
                 tags=tag_profile,
                 capability_profile=capability_profile,
@@ -3847,7 +3896,10 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 )
             ai_meta["tag_extraction"] = tag_meta
             ai_meta["structured_tags"] = compact_tag_payload(tag_profile)
-            ai_meta["capability_profile"] = capability_profile
+            ai_meta["capability_profile"] = normalize_technical_profile(
+                ai_meta.get("capability_profile") or capability_profile
+            )
+            ai_meta["local_candidate_count"] = len(local_results)
             results = [item for item in refined_results if int(item.get("score", 0) or 0) >= 45][:5]
             ai_meta["suppressed_low_relevance_count"] = max(0, len(refined_results) - len(results))
             save_submission(record)

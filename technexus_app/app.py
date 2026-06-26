@@ -2309,6 +2309,13 @@ def to_int_score(value: object, default: int = 0) -> int:
     return max(0, min(100, number))
 
 
+def to_float_score(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def merge_ai_results(local_results: list[dict], ai_payload: dict, config: dict) -> list[dict]:
     by_id = {item.get("demand_id"): item for item in local_results}
     merged: list[dict] = []
@@ -2320,6 +2327,11 @@ def merge_ai_results(local_results: list[dict], ai_payload: dict, config: dict) 
         if demand_id not in by_id or demand_id in seen:
             continue
         base = dict(by_id[demand_id])
+        local_score = to_int_score(base.get("score"), 0)
+        local_confidence = to_int_score(base.get("confidence"), 0)
+        local_recall_score = to_float_score(base.get("recall_score"), 0.0)
+        local_dimensions = base.get("dimensions") if isinstance(base.get("dimensions"), dict) else {}
+        local_hard_gate = clean_text(base.get("hard_gate", ""))
         dimensions = ai_item.get("dimensions") if isinstance(ai_item.get("dimensions"), dict) else {}
         score = to_int_score(ai_item.get("score"), base.get("score", 0))
         confidence = to_int_score(ai_item.get("confidence"), base.get("confidence", 50))
@@ -2349,6 +2361,23 @@ def merge_ai_results(local_results: list[dict], ai_payload: dict, config: dict) 
             base["hard_gate"] = "存在明确技术路线或强制指标冲突"
         if match_type in {"仅领域相关", "低相关"}:
             score = min(score, 45 if match_type == "仅领域相关" else 40)
+        weak_local_evidence = (
+            local_recall_score < 0.03
+            or local_score < 45
+            or "缺少直接对应证据" in local_hard_gate
+            or "不足以支持迁移" in local_hard_gate
+        )
+        local_core = to_int_score(local_dimensions.get("核心问题"), 0)
+        local_target = to_int_score(local_dimensions.get("技术标的"), 0)
+        local_route = to_int_score(local_dimensions.get("技术路线"), 0)
+        weak_technical_dimensions = local_core < 35 and local_target < 35 and local_route < 45
+        if weak_local_evidence and weak_technical_dimensions:
+            score = min(score, 44)
+            confidence = min(confidence, max(local_confidence, 55))
+            match_type = "需验证" if match_type not in {"低相关", "仅领域相关"} else match_type
+            base["hard_gate"] = local_hard_gate or "本地技术证据不足，AI 复核不得上调为高匹配"
+        elif local_score < 60 and score - local_score > 18:
+            score = min(score, local_score + 18)
         base["score"] = score
         base["confidence"] = confidence
         base["match_type"] = match_type
@@ -2408,10 +2437,7 @@ def refine_matches_with_ai(
         # returns malformed JSON, fall back to local scoring instead of making
         # a second repair request.
         ai_payload = parse_json_object(content)
-        corrected_profile = merge_technical_profiles(
-            normalize_technical_profile(capability_profile),
-            normalize_technical_profile(ai_payload.get("capability_profile")),
-        )
+        corrected_profile = normalize_technical_profile(capability_profile)
         refined = merge_ai_results(local_results, ai_payload, config)
         ai_ranked_count = sum(
             1 for item in refined if item.get("scoring_source") == "成果能力画像 + AI技术精排"
@@ -2432,7 +2458,7 @@ def refine_matches_with_ai(
         return refined, {
             "used_ai": True,
             "match_mode": "ai",
-            "message": "已完成成果能力画像校正，并对前 6 条候选需求进行 AI 技术复核。",
+            "message": "已基于成果材料生成能力画像，并对前 6 条候选需求进行 AI 技术复核。",
             "model": clean_text(config.get("model", "")),
             "tag_extraction": tag_meta or {},
             "structured_tags": compact_tag_payload(tag_profile),

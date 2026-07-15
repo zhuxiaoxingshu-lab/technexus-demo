@@ -24,3 +24,15 @@ services:
         sync: false
       - key: TECHNEXUS_ADMIN_PASSWORD
         sync: false
+  - type: web
+    name: technexus-web
+    runtime: node
+    plan: free
+    rootDir: technexus_web
+    buildCommand: npm ci --no-audit --no-fund && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: TECHNEXUS_API_BASE_URL
+        value: https://technexus-demo.onrender.com

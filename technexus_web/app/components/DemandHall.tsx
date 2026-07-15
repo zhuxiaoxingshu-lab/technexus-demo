@@ -1,0 +1,11 @@
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+type Demand = { demand_id?: string; name: string; tech_field?: string; demand_type?: string; cooperation_mode?: string; intended_price?: string; region?: string; detail_summary?: string };
+export function DemandHall() {
+  const [items, setItems] = useState<Demand[]>([]); const [offset, setOffset] = useState(0); const [total, setTotal] = useState(0); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  async function load(nextOffset: number) { setLoading(true); setError(""); try { const response = await fetch(`/api/backend?path=public/demands&limit=12&offset=${nextOffset}`); const data = await response.json(); if (!response.ok) throw new Error(data.message || "加载失败"); setItems((current) => nextOffset ? [...current, ...(data.items || [])] : data.items || []); setOffset(nextOffset + (data.items?.length || 0)); setTotal(Number(data.total || 0)); } catch (cause) { setError(cause instanceof Error ? cause.message : "需求加载失败"); } finally { setLoading(false); } }
+  useEffect(() => { void load(0); }, []);
+  return <><div className="hall-note"><div><b>{total ? `${total.toLocaleString("zh-CN")} 条需求已入库` : "真实产业技术需求库"}</b><p>这里展示需求样本；更完整的技术召回和评分需要提交成果。</p></div><Link className="button button-light" href="/match">让 AI 帮我找</Link></div>{error && <div className="error-box">{error}</div>}<div className="hall-grid">{items.map((item) => <article className="hall-card" key={item.demand_id || item.name}><div className="tags"><span>{item.tech_field || "技术需求"}</span><span>{item.demand_type || item.cooperation_mode || "合作开发"}</span>{item.intended_price && <span>意向投入 {item.intended_price}</span>}</div><h2>{item.name}</h2><p>{item.detail_summary || "需求详细技术任务将在匹配结果中展示。"}</p><div className="demand-meta"><span>{cleanRegion(item.region)}</span><b>发布方信息已隐藏</b></div></article>)}</div>{loading && <div className="loading-box"><span className="spinner" /><span>正在读取真实技术需求…</span></div>}{!loading && items.length < total && <div className="load-more"><button className="button button-secondary" onClick={() => void load(offset)}>查看更多需求样本</button></div>}</>;
+}
+function cleanRegion(value?: string) { return (value || "江苏省").replace(/\s*\/\s*/g, " · ").replace(/ · \d{6}$/, ""); }

@@ -2,6 +2,11 @@ name: Sync JSTEC Demands
 
 on:
   workflow_dispatch:
+    inputs:
+      analysis_limit:
+        description: "本次最多拆解多少条需求（首次回填可填写 300-500）"
+        required: false
+        default: "80"
   schedule:
     - cron: "10 1 * * *"
 
@@ -10,6 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TECHNEXUS_AI_ENABLED: "true"
+      TECHNEXUS_AI_BASE_URL: "https://api.deepseek.com"
+      TECHNEXUS_AI_API_KEY: ${{ secrets.TECHNEXUS_AI_API_KEY }}
+      TECHNEXUS_AI_MODEL: "deepseek-v4-pro"
+      TECHNEXUS_AI_TIMEOUT: "120"
+      ANALYSIS_LIMIT: ${{ github.event.inputs.analysis_limit || '80' }}
     steps:
       - name: Check database secret
         run: |
@@ -31,3 +42,11 @@ jobs:
 
       - name: Sync latest JSTEC demands
         run: python sync_jstec_demands.py --max-pages 12 --stop-after-known 30
+
+      - name: Analyze pending technical demands
+        if: ${{ env.TECHNEXUS_AI_API_KEY != '' }}
+        run: python analyze_demands.py --mode ai --require-ai --limit "$ANALYSIS_LIMIT" --batch-size 4
+
+      - name: Explain skipped AI analysis
+        if: ${{ env.TECHNEXUS_AI_API_KEY == '' }}
+        run: echo "需求同步已完成；未配置 TECHNEXUS_AI_API_KEY，暂时跳过需求画像拆解。"

@@ -34,7 +34,7 @@
   <view class="band">
     <view class="band-header">
       <text class="section-title">{{modeTitle}}</text>
-      <text class="muted">行业标签仅用于召回，最终按技术标的、核心问题、技术路线、指标约束和交付能力评分。</text>
+      <text class="muted">行业标签仅用于召回，最终按技术标的、核心问题、所需功能、技术路线、指标约束和交付能力评分。</text>
     </view>
     <view class="actions">
       <button class="btn ghost" bindtap="goSubmit">修改成果</button>

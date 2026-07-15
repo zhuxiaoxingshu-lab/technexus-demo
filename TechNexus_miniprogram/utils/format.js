@@ -34,6 +34,7 @@ function dimensionsForResult(item) {
   return [
     { name: "核心问题", value: Number(dims["核心问题"] || 0) },
     { name: "技术标的", value: Number(dims["技术标的"] || 0) },
+    { name: "所需功能", value: Number(dims["所需功能"] || 0) },
     { name: "技术路线", value: Number(dims["技术路线"] || 0) },
     { name: "指标约束", value: Number(dims["指标约束"] || 0) },
     { name: "交付成熟度", value: Number(dims["交付成熟度"] || 0) }

@@ -4,12 +4,12 @@ function modeMeta(mode) {
   if (mode === "quick") {
     return {
       title: "快速匹配结果",
-      copy: "不调用外部 API，按技术标的、核心问题、技术路线和指标约束完成快速初判。"
+      copy: "不调用外部 API，按技术标的、核心问题、所需功能、技术路线和指标约束完成快速初判。"
     };
   }
   return {
     title: "AI 智能匹配结果",
-    copy: "先在本地筛选候选，再由 DeepSeek 一次完成成果画像校正和前 6 条需求复核。"
+    copy: "读取预拆解的需求画像完成候选召回，再由 DeepSeek 复核前 6 条需求。"
   };
 }
 

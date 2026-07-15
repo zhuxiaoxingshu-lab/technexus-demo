@@ -180,8 +180,8 @@ function setMatchMode(mode) {
   if (hint) {
     hint.textContent =
       state.matchMode === "quick"
-        ? "快速匹配不会调用 DeepSeek API，会用本地规则拆解技术标的、核心问题、技术路线和指标后完成初筛。"
-        : "AI 智能匹配会先在本地筛选候选，再由 DeepSeek 一次完成成果画像校正和前 6 条需求复核。";
+        ? "快速匹配不会调用 DeepSeek API，会按技术标的、核心问题、所需功能、技术路线和指标完成初筛。"
+        : "AI 智能匹配会读取预拆解的需求画像，再由 DeepSeek 完成前 6 条候选需求复核。";
   }
   const submitButton = $("#submit-match");
   if (submitButton) {
@@ -207,7 +207,7 @@ async function runMatch(payload, button) {
   setButtonLoading(button, true, state.matchMode === "quick" ? "快速匹配中" : "AI匹配中");
   $("#result-status").textContent =
     state.matchMode === "quick"
-      ? "正在进行快速匹配：拆解技术标的、核心问题、技术路线和指标..."
+      ? "正在进行快速匹配：比较技术标的、核心问题、所需功能、技术路线和指标..."
       : "第 1 步：正在解析成果并生成初步能力画像...";
   $("#result-status").style.display = "block";
   renderResultMeta({});
@@ -513,6 +513,7 @@ function renderResults(results) {
           <div class="score-stack">
             ${scoreBar("核心问题", dims["核心问题"])}
             ${scoreBar("技术标的", dims["技术标的"])}
+            ${scoreBar("所需功能", dims["所需功能"])}
             ${scoreBar("技术路线", dims["技术路线"])}
             ${scoreBar("指标约束", dims["指标约束"])}
             ${scoreBar("交付成熟度", dims["交付成熟度"])}

@@ -34,6 +34,7 @@ AI_CONFIG_FILE = BASE_DIR / "ai_config.json"
 ADMIN_CONFIG_FILE = BASE_DIR / "admin_config.json"
 DB_FILE = DATA_DIR / "technexus.db"
 DATABASE_URL = os.getenv("TECHNEXUS_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
+DEMAND_ANALYSIS_VERSION = "demand-profile-v1"
 SESSION_COOKIE = "technexus_admin_session"
 SESSION_SECONDS = 8 * 60 * 60
 AGREEMENT_VERSION = "TechNexus-2026-06-01-v2"
@@ -969,6 +970,24 @@ def build_demand_technical_profile(demand: dict) -> dict:
     )
 
 
+def demand_content_hash(demand: dict) -> str:
+    """Return a stable fingerprint for fields that affect technical analysis."""
+    payload = {
+        field: clean_text(demand.get(field, ""))
+        for field in (
+            DEMAND_NAME_FIELD,
+            DEMAND_DETAIL_FIELD,
+            DEMAND_TECH_FIELD,
+            DEMAND_TYPE_FIELD,
+            DEMAND_COOP_FIELD,
+            DEMAND_PRICE_FIELD,
+            DEMAND_REGION_FIELD,
+        )
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def build_submission_technical_profile(submission: dict) -> dict:
     title = clean_text(submission.get("title", ""))
     summary = clean_text(submission.get("summary", ""))
@@ -1108,9 +1127,7 @@ def submission_confidence(submission: dict, profile: dict, demand_profile: dict)
 
 def ensure_demand_technical_profile(demand: dict) -> dict:
     existing = demand.get("_technical_profile")
-    if existing:
-        return existing
-    profile = build_demand_technical_profile(demand)
+    profile = normalize_technical_profile(existing) if existing else build_demand_technical_profile(demand)
     demand["_technical_profile"] = profile
     demand["_problem_tokens"] = tokenize(technical_profile_text(profile, "core_problem", "problem_terms"))
     demand["_target_tokens"] = tokenize(technical_profile_text(profile, "target", "application_object", "target_terms"))
@@ -1188,7 +1205,18 @@ class DemandStore:
 
     def stats(self) -> dict:
         self.refresh_if_changed()
-        return {"demand_count": len(self.demands), "loaded_at": self.loaded_at}
+        analysis = demand_analysis_stats()
+        ai_profile_count = sum(
+            int(item.get("count") or 0)
+            for item in analysis.get("groups", [])
+            if clean_text(item.get("source")) == "local+ai"
+        )
+        return {
+            "demand_count": len(self.demands),
+            "loaded_at": self.loaded_at,
+            "demand_profile_count": int(analysis.get("total") or 0),
+            "demand_ai_profile_count": ai_profile_count,
+        }
 
     def by_id(self, demand_id: str) -> dict | None:
         demand_id = clean_text(demand_id)
@@ -1603,6 +1631,22 @@ def score_demand(
         left_anchors=profile_anchors.get("route", set()),
         right_anchors=set(demand.get("_route_anchors", set())),
     )
+    function_text = technical_profile_text(profile, "required_functions", "problem_terms")
+    demand_function_text = technical_profile_text(demand_profile, "required_functions", "problem_terms")
+    user_function_anchors = set(profile_anchors.get("function", set()))
+    demand_function_anchors = set(demand.get("_function_anchors", set()))
+    function_left_anchors = user_function_anchors or extract_technical_anchors(function_text)
+    function_right_anchors = demand_function_anchors or extract_technical_anchors(demand_function_text)
+    if function_text and demand_function_text:
+        function_score, function_overlap = anchored_technical_similarity(
+            function_text,
+            demand_function_text,
+            scale=240,
+            left_anchors=function_left_anchors,
+            right_anchors=function_right_anchors,
+        )
+    else:
+        function_score, function_overlap = 45, []
     indicator_score, verified_indicators, unverified_indicators = indicator_fit_score(profile, demand_profile)
     maturity_value = maturity_score(clean_text(submission.get("maturity", "")), demand.get(DEMAND_DETAIL_FIELD, ""))
     if not clean_text(submission.get("maturity", "")):
@@ -1613,21 +1657,16 @@ def score_demand(
     industry_overlap = overlap_tags(tags.get("industry_tags", []), demand_tags.get("industry_tags", []))
     total = round(
         problem_score * 0.25
-        + target_score * 0.20
-        + route_score * 0.25
-        + indicator_score * 0.20
-        + maturity_value * 0.10
+        + target_score * 0.25
+        + function_score * 0.20
+        + route_score * 0.15
+        + indicator_score * 0.10
+        + maturity_value * 0.05
     )
-    user_function_anchors = set(profile_anchors.get("function", set()))
     shared_function_anchors = rank_technical_anchors(
-        user_function_anchors & set(demand.get("_function_anchors", set())),
+        set(function_overlap) | (user_function_anchors & demand_function_anchors),
         6,
     )
-    if user_function_anchors:
-        if shared_function_anchors:
-            total += min(8, 4 + len(shared_function_anchors) * 2)
-        else:
-            total -= 7
     context_adjustment = 0
     if clean_text(submission.get("region", "")) and clean_text(submission.get("region", "")) in demand.get(DEMAND_REGION_FIELD, ""):
         context_adjustment += 2
@@ -1636,13 +1675,16 @@ def score_demand(
     total += min(4, context_adjustment)
 
     hard_gate = ""
-    unique_anchors = set(problem_overlap + target_overlap + route_overlap)
+    unique_anchors = set(problem_overlap + target_overlap + function_overlap + route_overlap)
     has_explicit_route = bool(clean_text(submission.get("technical_route", "")))
     has_explicit_problem = bool(clean_text(submission.get("problem", "")))
     has_transfer_evidence = has_explicit_route or bool(profile.get("evidence")) or bool(profile.get("indicators"))
     if not unique_anchors:
         total = min(total, 39)
         hard_gate = "技术标的与核心问题均缺少直接对应证据"
+    elif target_overlap and function_score < 20 and problem_score < 30:
+        total = min(total, 44)
+        hard_gate = "技术对象存在相似性，但需要实现的功能目标不同"
     elif not target_overlap and not has_transfer_evidence:
         total = min(total, 44)
         hard_gate = "需求作用对象不同，且未提供明确技术路线、指标或案例支持技术迁移"
@@ -1717,6 +1759,7 @@ def score_demand(
         "dimensions": {
             "核心问题": problem_score,
             "技术标的": target_score,
+            "所需功能": function_score,
             "技术路线": route_score,
             "指标约束": indicator_score,
             "交付成熟度": maturity_value,
@@ -2227,10 +2270,11 @@ def build_ai_messages(
 
 请逐条比较：
 1. 核心问题匹配（25%）：成果是否解决需求真正的技术瓶颈。
-2. 技术标的匹配（20%）：成果作用对象、产品或交付对象是否与需求一致。
-3. 技术路线可行性（25%）：底层机理、材料、工艺、算法或装备路线是否适用。
-4. 指标与约束满足度（20%）：需求量化指标和限制条件是否已有证据满足。
-5. 成熟度与交付能力（10%）：样品、中试、工程化和交付能力是否符合需求阶段。
+2. 技术标的匹配（25%）：成果作用对象、产品或交付对象是否与需求一致。
+3. 所需功能匹配（20%）：成果已经具备的功能是否对应需求希望实现的功能目标。
+4. 技术路线可行性（15%）：底层机理、材料、工艺、算法或装备路线是否适用。
+5. 指标与约束满足度（10%）：需求量化指标和限制条件是否已有证据满足。
+6. 成熟度与交付能力（5%）：样品、中试、工程化和交付能力是否符合需求阶段。
 
 规则：
 - 只能使用候选需求中的信息，不要编造不存在的需求。
@@ -2244,7 +2288,7 @@ def build_ai_messages(
 - 材料未提供某项指标时，应标记“未验证”，不得自行推断已经满足。
 - 技术匹配度与判断可信度必须分开。资料不完整可以降低可信度，但不能伪造证据。
 - 不要输出需求方联系方式、手机号、联系人或外部详情页链接。
-- 总分、可信度和五个维度分数均为 0 到 100 的整数。
+- 总分、可信度和六个维度分数均为 0 到 100 的整数。
 - reason 要像技术经理人写给用户看的中文说明，具体但简洁。
 - suggestion 要给出下一步撮合建议。
 - 只评估给出的候选需求，不扩写背景知识。每项说明尽量控制在80字以内。
@@ -2268,7 +2312,7 @@ def build_ai_messages(
       "score": 88,
       "confidence": 72,
       "match_type": "直接解决/关键组件/技术迁移/仅领域相关/低相关/需验证",
-      "dimensions": {"核心问题": 90, "技术标的": 86, "技术路线": 88, "指标约束": 70, "交付成熟度": 82},
+      "dimensions": {"核心问题": 90, "技术标的": 86, "所需功能": 88, "技术路线": 82, "指标约束": 70, "交付成熟度": 82},
       "technical_target": "需求要研发或交付的具体对象",
       "core_problem": "需求真正要解决的技术问题",
       "matched_capability": "成果能够提供的对应技术能力",
@@ -2340,6 +2384,7 @@ def merge_ai_results(local_results: list[dict], ai_payload: dict, config: dict) 
         base["dimensions"] = {
             "核心问题": to_int_score(dimensions.get("核心问题"), base.get("dimensions", {}).get("核心问题", 0)),
             "技术标的": to_int_score(dimensions.get("技术标的"), base.get("dimensions", {}).get("技术标的", 0)),
+            "所需功能": to_int_score(dimensions.get("所需功能"), base.get("dimensions", {}).get("所需功能", 0)),
             "技术路线": to_int_score(dimensions.get("技术路线"), base.get("dimensions", {}).get("技术路线", 0)),
             "指标约束": to_int_score(dimensions.get("指标约束"), base.get("dimensions", {}).get("指标约束", 0)),
             "交付成熟度": to_int_score(
@@ -2369,8 +2414,11 @@ def merge_ai_results(local_results: list[dict], ai_payload: dict, config: dict) 
         )
         local_core = to_int_score(local_dimensions.get("核心问题"), 0)
         local_target = to_int_score(local_dimensions.get("技术标的"), 0)
+        local_function = to_int_score(local_dimensions.get("所需功能"), 0)
         local_route = to_int_score(local_dimensions.get("技术路线"), 0)
-        weak_technical_dimensions = local_core < 35 and local_target < 35 and local_route < 45
+        weak_technical_dimensions = (
+            local_core < 35 and local_target < 35 and local_function < 35 and local_route < 45
+        )
         if weak_local_evidence and weak_technical_dimensions:
             score = min(score, 44)
             confidence = min(confidence, max(local_confidence, 55))
@@ -2569,7 +2617,16 @@ def demand_public_payload(row: dict) -> dict:
 def database_demands_version() -> str:
     try:
         with db_connect() as conn:
-            row = db_execute(conn, "SELECT COUNT(*) AS count, MAX(updated_at) AS updated_at FROM demands").fetchone()
+            row = db_execute(
+                conn,
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM demands) AS count,
+                    (SELECT MAX(updated_at) FROM demands) AS updated_at,
+                    (SELECT COUNT(*) FROM demand_analyses) AS analysis_count,
+                    (SELECT MAX(updated_at) FROM demand_analyses) AS analysis_updated_at
+                """,
+            ).fetchone()
     except Exception:
         return ""
     if not row:
@@ -2578,7 +2635,10 @@ def database_demands_version() -> str:
     count = int(item.get("count") or 0)
     if count <= 0:
         return ""
-    return f"db:{count}:{clean_text(item.get('updated_at'))}"
+    return (
+        f"db:{count}:{clean_text(item.get('updated_at'))}:"
+        f"{int(item.get('analysis_count') or 0)}:{clean_text(item.get('analysis_updated_at'))}"
+    )
 
 
 def load_demands_from_database() -> list[dict]:
@@ -2595,6 +2655,7 @@ def load_demands_from_database() -> list[dict]:
     except Exception:
         return []
 
+    analysis_map = load_demand_analysis_map()
     demands: list[dict] = []
     for row in rows:
         item = dict(row)
@@ -2604,6 +2665,34 @@ def load_demands_from_database() -> list[dict]:
             continue
         cleaned = prepare_demand_row(payload if isinstance(payload, dict) else {})
         if cleaned:
+            demand_id = clean_text(cleaned.get(DEMAND_ID_FIELD))
+            analysis = analysis_map.get(demand_id) or {}
+            if analysis and clean_text(analysis.get("content_hash")) == demand_content_hash(cleaned):
+                profile = normalize_technical_profile(analysis.get("profile"))
+                if any(profile.values()):
+                    cleaned["_technical_profile"] = profile
+                    cleaned["_analysis_source"] = clean_text(analysis.get("source"))
+                    cleaned["_analysis_version"] = clean_text(analysis.get("analysis_version"))
+                    cleaned["_analysis_quality"] = int(analysis.get("quality_score") or 0)
+                    profile_search_text = technical_profile_text(
+                        profile,
+                        "target",
+                        "core_problem",
+                        "required_functions",
+                        "technical_route",
+                        "indicators",
+                        "constraints",
+                        "application_object",
+                        "deliverables",
+                        "target_terms",
+                        "problem_terms",
+                        "route_terms",
+                        "indicator_terms",
+                    )
+                    cleaned["_search_text"] = " ".join(
+                        [cleaned.get("_search_text", ""), profile_search_text]
+                    ).strip()
+                    cleaned["_tokens"] = tokenize(cleaned["_search_text"])
             demands.append(cleaned)
     return demands
 
@@ -2615,6 +2704,106 @@ def existing_demand_ids() -> set[str]:
             return {clean_text(dict(row).get("demand_id")) for row in rows if clean_text(dict(row).get("demand_id"))}
     except Exception:
         return set()
+
+
+def load_demand_analysis_map() -> dict[str, dict]:
+    try:
+        with db_connect() as conn:
+            rows = db_execute(
+                conn,
+                """
+                SELECT demand_id, content_hash, analysis_version, status, source, model,
+                       profile_json, local_profile_json, quality_score, error, analyzed_at, updated_at
+                FROM demand_analyses
+                """,
+            ).fetchall()
+    except Exception:
+        return {}
+
+    analyses: dict[str, dict] = {}
+    for row in rows:
+        item = dict(row)
+        demand_id = clean_text(item.get("demand_id"))
+        if not demand_id:
+            continue
+        try:
+            profile = json.loads(clean_text(item.get("profile_json")) or "{}")
+        except json.JSONDecodeError:
+            profile = {}
+        try:
+            local_profile = json.loads(clean_text(item.get("local_profile_json")) or "{}")
+        except json.JSONDecodeError:
+            local_profile = {}
+        analyses[demand_id] = {
+            **item,
+            "profile": profile if isinstance(profile, dict) else {},
+            "local_profile": local_profile if isinstance(local_profile, dict) else {},
+        }
+    return analyses
+
+
+def upsert_demand_analysis(record: dict) -> None:
+    timestamp = clean_text(record.get("updated_at")) or now_iso()
+    analyzed_at = clean_text(record.get("analyzed_at")) or timestamp
+    profile = normalize_technical_profile(record.get("profile") or {})
+    local_profile = normalize_technical_profile(record.get("local_profile") or profile)
+    with db_connect() as conn:
+        db_execute(
+            conn,
+            """
+            INSERT INTO demand_analyses (
+                demand_id, content_hash, analysis_version, status, source, model,
+                profile_json, local_profile_json, quality_score, error, analyzed_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (demand_id) DO UPDATE SET
+                content_hash = excluded.content_hash,
+                analysis_version = excluded.analysis_version,
+                status = excluded.status,
+                source = excluded.source,
+                model = excluded.model,
+                profile_json = excluded.profile_json,
+                local_profile_json = excluded.local_profile_json,
+                quality_score = excluded.quality_score,
+                error = excluded.error,
+                analyzed_at = excluded.analyzed_at,
+                updated_at = excluded.updated_at
+            """,
+            (
+                clean_text(record.get("demand_id")),
+                clean_text(record.get("content_hash")),
+                clean_text(record.get("analysis_version")) or DEMAND_ANALYSIS_VERSION,
+                clean_text(record.get("status")) or "ready",
+                clean_text(record.get("source")) or "local",
+                clean_text(record.get("model")),
+                json_dumps(profile),
+                json_dumps(local_profile),
+                max(0, min(100, int(record.get("quality_score") or 0))),
+                clip(record.get("error", ""), 1000),
+                analyzed_at,
+                timestamp,
+            ),
+        )
+
+
+def demand_analysis_stats() -> dict:
+    try:
+        with db_connect() as conn:
+            rows = db_execute(
+                conn,
+                """
+                SELECT status, source, COUNT(*) AS count
+                FROM demand_analyses
+                GROUP BY status, source
+                """,
+            ).fetchall()
+    except Exception:
+        return {"total": 0, "groups": []}
+    groups = [dict(row) for row in rows]
+    return {
+        "total": sum(int(item.get("count") or 0) for item in groups),
+        "groups": groups,
+    }
 
 
 def save_demand_rows_to_database(rows: list[dict], *, update_existing: bool = True) -> dict:
@@ -2772,7 +2961,24 @@ def init_database() -> None:
         updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS demand_analyses (
+        demand_id TEXT PRIMARY KEY,
+        content_hash TEXT NOT NULL,
+        analysis_version TEXT NOT NULL,
+        status TEXT NOT NULL,
+        source TEXT NOT NULL,
+        model TEXT DEFAULT '',
+        profile_json TEXT NOT NULL,
+        local_profile_json TEXT NOT NULL,
+        quality_score INTEGER DEFAULT 0,
+        error TEXT DEFAULT '',
+        analyzed_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_demands_updated_at ON demands (updated_at);
+    CREATE INDEX IF NOT EXISTS idx_demand_analyses_status ON demand_analyses (status);
+    CREATE INDEX IF NOT EXISTS idx_demand_analyses_version ON demand_analyses (analysis_version);
     CREATE INDEX IF NOT EXISTS idx_match_followups_match_id ON match_followups (match_id);
     """
     with db_connect() as conn:

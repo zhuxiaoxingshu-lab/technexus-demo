@@ -10,24 +10,50 @@ type ResultItem = {
 };
 type MatchResponse = { submission_id?: string; results?: ResultItem[]; ai_meta?: { used_ai?: boolean; message?: string; capability_profile?: Record<string, unknown> }; message?: string };
 type Submission = Record<string, string>;
+type CapabilityProfile = {
+  target?: string; core_problem?: string; required_functions?: string[]; technical_route?: string;
+  indicators?: string[]; constraints?: string[]; application_object?: string; deliverables?: string[];
+  evidence?: string[]; maturity?: string;
+};
+type AnalysisResponse = {
+  ok?: boolean; used_ai?: boolean; source?: string; message?: string;
+  structured_tags?: Record<string, unknown>; capability_profile?: CapabilityProfile;
+};
 
 const fields = ["新材料", "新能源与节能", "电子信息", "智能制造", "生物医药", "环保低碳", "高端装备", "其他"];
 
 export function MatchWorkspace() {
   const [mode, setMode] = useState("ai");
   const [loading, setLoading] = useState(false);
+  const [stage, setStage] = useState<"analyzing" | "matching">("analyzing");
   const [error, setError] = useState("");
   const [response, setResponse] = useState<MatchResponse | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [submission, setSubmission] = useState<Submission>({});
 
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setLoading(true); setError(""); setResponse(null);
+    event.preventDefault(); setLoading(true); setStage(mode === "ai" ? "analyzing" : "matching"); setError(""); setResponse(null); setAnalysis(null);
     const form = event.currentTarget;
     const body = Object.fromEntries(new FormData(form).entries()) as Submission;
     body.match_mode = mode; body.client_source = "网页端";
     setSubmission(body);
     try {
-      const result = await fetch("/api/backend?path=match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      let matchBody: Record<string, unknown> = body;
+      if (mode === "ai") {
+        const analyzeResult = await fetch("/api/backend?path=analyze-achievement", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const analyzeText = await analyzeResult.text();
+        const analyzeData = analyzeText ? JSON.parse(analyzeText) as AnalysisResponse : { message: "成果解析服务未返回数据" };
+        if (!analyzeResult.ok) throw new Error(analyzeData.message || "成果解析服务暂时不可用");
+        setAnalysis(analyzeData);
+        matchBody = {
+          ...body,
+          capability_profile: analyzeData.capability_profile || {},
+          structured_tags: analyzeData.structured_tags || {},
+          analysis_source: analyzeData.source || "local",
+        };
+        setStage("matching");
+      }
+      const result = await fetch("/api/backend?path=match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(matchBody) });
       const text = await result.text();
       const data = text ? JSON.parse(text) as MatchResponse : { message: "服务器未返回数据" };
       if (!result.ok) throw new Error(data.message || "匹配服务暂时不可用");
@@ -49,21 +75,31 @@ export function MatchWorkspace() {
           <Field label="姓名" required><input name="name" required placeholder="请输入联系人姓名" /></Field>
           <Field label="手机号" required><input name="phone" required inputMode="tel" placeholder="请输入手机号" /></Field>
           <Field label="单位" required><input name="company" required placeholder="高校、科研院所或企业" /></Field>
-          <Field label="成果名称" required><input name="achievement_name" required placeholder="请输入成果、专利或技术方案名称" /></Field>
-          <Field label="技术领域"><select name="tech_field" defaultValue=""><option value="">请选择或留空</option>{fields.map((item) => <option key={item}>{item}</option>)}</select></Field>
-          <Field label="所在地区"><input name="region" placeholder="例如：江苏省 / 南通市" /></Field>
         </div>
       </FormSection>
-      <FormSection number="02" title="技术任务信息" description="系统主要依据这里的内容与需求正文进行技术层面的对照。">
+      <FormSection number="02" title="粘贴成果材料" description="直接粘贴完整材料，AI 会先拆解成果能力画像，再与需求正文逐项对照。">
         <div className="form-grid">
-          <Field label="应用场景" required className="full"><textarea name="application_scene" required placeholder="这项成果主要用于哪些行业、产品、设备或生产环节？" /></Field>
-          <Field label="技术成果摘要" required className="full"><textarea name="summary" required placeholder="成果是什么、目前完成了什么、能够解决什么具体技术问题？" /></Field>
-          <Field label="底层原理与技术路线" required className="full"><textarea name="technical_route" required placeholder="请说明采用的材料、配方、工艺、算法、设备或系统路线，以及关键作用机制。" /></Field>
-          <Field label="量化指标" className="wide"><textarea name="indicators" placeholder="例如：导热系数≥10 W/mK、识别精度≥95%、寿命≥6000次。" /></Field>
-          <Field label="验证基础"><textarea name="evidence" placeholder="例如：已有样品、检测报告、中试记录、客户案例、专利或论文。" /></Field>
-          <Field label="相对优势" className="wide"><textarea name="advantages" placeholder="相较现有方案在成本、效率、可靠性、性能或规模化方面的优势。" /></Field>
-          <Field label="拟解决的产业问题"><textarea name="problem" placeholder="希望帮助企业解决什么具体痛点？" /></Field>
+          <Field label="成果名称" required><input name="title" required placeholder="请输入成果、专利或技术方案名称" /></Field>
+          <Field label="技术领域"><select name="tech_field" defaultValue=""><option value="">可由 AI 判断</option>{fields.map((item) => <option key={item}>{item}</option>)}</select></Field>
+          <Field label="所在地区"><input name="region" placeholder="例如：江苏省 / 南通市" /></Field>
+          <Field label="成果完整材料" required className="full achievement-paste">
+            <textarea name="achievement_text" required minLength={50} maxLength={30000} placeholder="可直接粘贴专利交底书、论文摘要与关键章节、项目介绍、技术说明书、检测报告或已有成果材料。内容越完整，AI 对技术标的、核心问题、底层路线、量化指标和验证基础的识别越准确。" />
+          </Field>
         </div>
+        <div className="paste-guide"><b>AI 将自动提取</b><span>技术标的 · 核心问题 · 所需功能 · 技术路线 · 量化指标 · 验证证据 · 成熟度 · 应用边界</span></div>
+        <details className="advanced-fields">
+          <summary>可选：补充或校正结构化信息</summary>
+          <p>如果原始材料中缺少某项信息，可在这里补充；已填写内容会与 AI 拆解结果共同用于匹配。</p>
+          <div className="form-grid">
+            <Field label="应用场景" className="full"><textarea name="application_scene" placeholder="这项成果主要用于哪些行业、产品、设备或生产环节？" /></Field>
+            <Field label="技术成果摘要" className="full"><textarea name="summary" placeholder="成果是什么、目前完成了什么、能够解决什么具体技术问题？" /></Field>
+            <Field label="底层原理与技术路线" className="full"><textarea name="technical_route" placeholder="采用的材料、配方、工艺、算法、设备或系统路线，以及关键作用机制。" /></Field>
+            <Field label="量化指标" className="wide"><textarea name="indicators" placeholder="例如：导热系数≥10 W/mK、识别精度≥95%、寿命≥6000次。" /></Field>
+            <Field label="验证基础"><textarea name="evidence" placeholder="例如：已有样品、检测报告、中试记录、客户案例、专利或论文。" /></Field>
+            <Field label="相对优势" className="wide"><textarea name="advantages" placeholder="相较现有方案在成本、效率、可靠性、性能或规模化方面的优势。" /></Field>
+            <Field label="拟解决的产业问题"><textarea name="problem" placeholder="希望帮助企业解决什么具体痛点？" /></Field>
+          </div>
+        </details>
       </FormSection>
       <FormSection number="03" title="成熟度与合作方式" description="帮助系统判断需求交付条件是否与成果现状相符。">
         <div className="form-grid">
@@ -72,8 +108,9 @@ export function MatchWorkspace() {
           <Field label="期望合作方式"><select name="cooperation" defaultValue=""><option value="">请选择</option><option>合作开发</option><option>技术转让</option><option>技术许可</option><option>技术服务</option><option>委托研发</option><option>可协商</option></select></Field>
         </div>
       </FormSection>
-      <div className="form-submit"><button className="button button-primary" type="submit" disabled={loading}>{loading ? "正在分析与匹配…" : "开始 AI 智能匹配 ↗"}</button><p>AI 结果用于技术转移初筛，不构成技术可行性、投资、法律或知识产权结论。</p></div>
-      {loading && <div className="loading-box"><span className="spinner" /><div><b>正在拆解成果能力画像并召回技术任务</b><br /><small>免费服务器首次唤醒可能需要约 1 分钟，请保持页面打开。</small></div></div>}
+      <div className="form-submit"><button className="button button-primary" type="submit" disabled={loading}>{loading ? (stage === "analyzing" ? "AI 正在拆解成果…" : "正在匹配需求…") : (mode === "ai" ? "AI 拆解并匹配 ↗" : "开始快速匹配 ↗")}</button><p>AI 结果用于技术转移初筛，不构成技术可行性、投资、法律或知识产权结论。</p></div>
+      {analysis?.capability_profile && <CapabilityPreview analysis={analysis} />}
+      {loading && <div className="loading-box"><span className="spinner" /><div><b>{stage === "analyzing" ? "正在读取全文并生成成果能力画像" : "正在用成果能力画像召回并复核技术需求"}</b><br /><small>免费服务器首次唤醒可能需要约 1 分钟，请保持页面打开。</small></div></div>}
       {error && <div className="error-box">{error}</div>}
     </form>
     {response && <MatchResults response={response} submission={submission} />}
@@ -82,6 +119,24 @@ export function MatchWorkspace() {
 
 function FormSection({ number, title, description, children }: { number: string; title: string; description: string; children: React.ReactNode }) { return <section className="form-section"><div className="form-section-head"><span>{number}</span><div><h2>{title}</h2><p>{description}</p></div></div>{children}</section>; }
 function Field({ label, required, className = "", children }: { label: string; required?: boolean; className?: string; children: React.ReactNode }) { return <div className={`field ${className}`}><label>{label}{required && <em> *</em>}</label>{children}</div>; }
+
+function CapabilityPreview({ analysis }: { analysis: AnalysisResponse }) {
+  const profile = analysis.capability_profile || {};
+  const values: [string, string][] = [
+    ["技术标的", profile.target || "待补充"],
+    ["能够解决的问题", profile.core_problem || "待补充"],
+    ["底层原理与技术路线", profile.technical_route || "待补充"],
+    ["应用对象", profile.application_object || "待补充"],
+    ["已验证指标", profile.indicators?.join("；") || "原始材料中未识别到明确指标"],
+    ["验证基础", profile.evidence?.join("；") || "原始材料中未识别到明确证据"],
+    ["成熟度", profile.maturity || "待人工确认"],
+  ];
+  return <section className="capability-preview">
+    <div className="capability-preview-head"><div><span>AI 成果拆解</span><h3>成果能力画像已生成</h3></div><small>{analysis.used_ai ? "DeepSeek 解析" : "本地规则解析"}</small></div>
+    <div className="capability-grid">{values.map(([label, value]) => <div key={label}><b>{label}</b><p>{value}</p></div>)}</div>
+    <p className="capability-note">{analysis.message || "系统将使用上述画像与需求正文进行匹配。"}</p>
+  </section>;
+}
 
 function MatchResults({ response, submission }: { response: MatchResponse; submission: Submission }) {
   const items = response.results || [];

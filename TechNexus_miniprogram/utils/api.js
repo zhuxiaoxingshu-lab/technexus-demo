@@ -60,6 +60,14 @@ function matchDemands(payload) {
   });
 }
 
+function analyzeAchievement(payload) {
+  return request("/api/analyze-achievement", {
+    method: "POST",
+    data: payload,
+    timeout: 90000
+  });
+}
+
 function submitIntent(payload) {
   return request("/api/intents", {
     method: "POST",
@@ -77,6 +85,7 @@ function queryProgress(queryCode) {
 }
 
 module.exports = {
+  analyzeAchievement,
   getPublicDemands,
   getStats,
   matchDemands,

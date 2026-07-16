@@ -1,1 +1,13 @@
 /* 成果提交页样式主要复用全局 app.wxss */
+.achievement-textarea {
+  min-height: 420rpx;
+  line-height: 1.75;
+  background: linear-gradient(180deg, #fbfdfc, #f3faf7);
+}
+
+.optional-heading {
+  margin: 28rpx 0 6rpx;
+  color: #087f73;
+  font-size: 24rpx;
+  font-weight: 700;
+}

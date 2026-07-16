@@ -989,7 +989,8 @@ def demand_content_hash(demand: dict) -> str:
 
 
 def build_submission_technical_profile(submission: dict) -> dict:
-    title = clean_text(submission.get("title", ""))
+    title = clean_text(submission.get("title") or submission.get("achievement_name", ""))
+    achievement_text = clean_text(submission.get("achievement_text") or submission.get("full_text", ""))
     summary = clean_text(submission.get("summary", ""))
     problem = clean_text(submission.get("problem", ""))
     advantages = clean_text(submission.get("advantages", ""))
@@ -999,13 +1000,27 @@ def build_submission_technical_profile(submission: dict) -> dict:
     explicit_evidence = clean_text(submission.get("evidence", ""))
     extra = clean_text(submission.get("extra_note") or submission.get("attachment_note", ""))
     combined = " ".join(
-        [title, summary, problem, explicit_route, explicit_indicators, explicit_evidence, advantages, scene, extra]
+        [
+            title,
+            achievement_text,
+            summary,
+            problem,
+            explicit_route,
+            explicit_indicators,
+            explicit_evidence,
+            advantages,
+            scene,
+            extra,
+        ]
     )
     route_sentences = sentences_with_markers(
-        " ".join([explicit_route, summary, advantages, extra]), ROUTE_MARKERS, limit=5
+        " ".join([explicit_route, achievement_text, summary, advantages, extra]), ROUTE_MARKERS, limit=5
     )
-    problem_text = problem or " ".join(sentences_with_markers(summary, PROBLEM_MARKERS, limit=5))
-    technical_route = clip(explicit_route or " ".join(route_sentences) or summary, 420)
+    problem_text = problem or " ".join(
+        sentences_with_markers(" ".join([achievement_text, summary]), PROBLEM_MARKERS, limit=5)
+    )
+    technical_route = clip(explicit_route or " ".join(route_sentences) or summary or achievement_text, 420)
+    application_object = scene or clip(" ".join(split_technical_sentences(achievement_text)[:2]), 220)
     indicators = dedupe_keep_order(
         [*extract_measurements(explicit_indicators), *extract_measurements(combined)], 8
     )
@@ -1016,20 +1031,20 @@ def build_submission_technical_profile(submission: dict) -> dict:
         {
             "target": title,
             "core_problem": problem_text,
-            "required_functions": specific_keywords(" ".join([problem_text, summary]), limit=6),
+            "required_functions": specific_keywords(" ".join([problem_text, summary, achievement_text]), limit=6),
             "technical_route": technical_route,
             "indicators": indicators,
             "constraints": sentences_with_markers(combined, CONSTRAINT_MARKERS, limit=5),
-            "application_object": scene,
+            "application_object": application_object,
             "deliverables": specific_keywords(
                 " ".join([clean_text(submission.get("cooperation", "")), clean_text(submission.get("maturity", "")), summary]),
                 limit=6,
             ),
             "evidence": evidence,
             "maturity": maturity_label(clean_text(submission.get("maturity", ""))),
-            "target_terms": specific_keywords(" ".join([title, scene]), limit=12),
-            "problem_terms": specific_keywords(" ".join([problem_text, summary]), limit=12),
-            "route_terms": specific_keywords(" ".join([technical_route, advantages]), limit=12),
+            "target_terms": specific_keywords(" ".join([title, application_object, achievement_text]), limit=12),
+            "problem_terms": specific_keywords(" ".join([problem_text, summary, achievement_text]), limit=12),
+            "route_terms": specific_keywords(" ".join([technical_route, advantages, achievement_text]), limit=12),
             "indicator_terms": specific_keywords(" ".join(indicators), limit=12),
         }
     )
@@ -1330,16 +1345,28 @@ def build_user_text(data: dict, fields: tuple[str, ...]) -> str:
 def extract_submission_tags_local(submission: dict) -> dict:
     tech_text = build_user_text(
         submission,
-        ("tech_field", "title", "summary", "technical_route", "advantages", "problem", "extra_note", "attachment_note"),
+        (
+            "tech_field",
+            "title",
+            "achievement_text",
+            "summary",
+            "technical_route",
+            "advantages",
+            "problem",
+            "extra_note",
+            "attachment_note",
+        ),
     )
     scene_text = build_user_text(
-        submission, ("application_scene", "summary", "problem", "indicators", "extra_note", "attachment_note")
+        submission,
+        ("application_scene", "achievement_text", "summary", "problem", "indicators", "extra_note", "attachment_note"),
     )
     industry_text = build_user_text(
         submission,
         (
             "tech_field",
             "application_scene",
+            "achievement_text",
             "summary",
             "technical_route",
             "cooperation",
@@ -1348,11 +1375,15 @@ def extract_submission_tags_local(submission: dict) -> dict:
             "attachment_note",
         ),
     )
-    cooperation_text = build_user_text(submission, ("cooperation", "summary", "evidence", "extra_note", "attachment_note"))
+    cooperation_text = build_user_text(
+        submission,
+        ("cooperation", "achievement_text", "summary", "evidence", "extra_note", "attachment_note"),
+    )
     full_text = build_user_text(
         submission,
         (
             "title",
+            "achievement_text",
             "tech_field",
             "application_scene",
             "summary",
@@ -2096,7 +2127,7 @@ def build_tag_extraction_messages(submission: dict, local_tags: dict) -> list[di
     )
     local_profile = build_submission_technical_profile(submission)
     user_payload = {
-        "submission": compact_submission(submission),
+        "submission": compact_submission(submission, full_text_chars=12000),
         "local_seed_tags": compact_tag_payload(local_tags),
         "local_seed_capability_profile": local_profile,
         "standard_vocab": vocab_payload,
@@ -2180,7 +2211,7 @@ def extract_tags_with_ai(config: dict, submission: dict, local_tags: dict) -> tu
             "message": "未配置 DeepSeek API，已使用本地标签抽取。",
         }
     try:
-        content = deepseek_chat(config, build_tag_extraction_messages(submission, local_tags), max_tokens=2200)
+        content = deepseek_chat(config, build_tag_extraction_messages(submission, local_tags), max_tokens=3000)
         ai_payload = parse_json_object_with_ai(config, content, task_name="标签抽取")
         ai_tags = normalize_ai_tag_payload(ai_payload)
         ai_profile = normalize_ai_technical_profile(ai_payload)
@@ -2206,9 +2237,10 @@ def extract_tags_with_ai(config: dict, submission: dict, local_tags: dict) -> tu
         }
 
 
-def compact_submission(submission: dict) -> dict:
+def compact_submission(submission: dict, *, full_text_chars: int = 3500) -> dict:
     return {
-        "成果名称": clean_text(submission.get("title")),
+        "成果名称": clean_text(submission.get("title") or submission.get("achievement_name")),
+        "成果全文": clip(submission.get("achievement_text") or submission.get("full_text", ""), full_text_chars),
         "技术领域": clean_text(submission.get("tech_field")),
         "应用场景": clip(submission.get("application_scene", ""), 180),
         "技术成果摘要": clip(submission.get("summary", ""), 300),
@@ -2221,6 +2253,24 @@ def compact_submission(submission: dict) -> dict:
         "合作方式": clean_text(submission.get("cooperation")),
         "所在地区": clean_text(submission.get("region")),
         "补充说明或相关链接": clip(submission.get("extra_note") or submission.get("attachment_note", ""), 160),
+    }
+
+
+def capability_profile_form_fields(profile: dict | None) -> dict:
+    """Expose AI-parsed profile values for a user-facing preview or correction form."""
+    normalized = normalize_technical_profile(profile)
+    return {
+        "application_scene": normalized.get("application_object", ""),
+        "summary": "；".join(
+            value
+            for value in [normalized.get("target", ""), normalized.get("core_problem", "")]
+            if value
+        ),
+        "technical_route": normalized.get("technical_route", ""),
+        "indicators": "；".join(normalized.get("indicators") or []),
+        "evidence": "；".join(normalized.get("evidence") or []),
+        "problem": normalized.get("core_problem", ""),
+        "maturity": normalized.get("maturity", ""),
     }
 
 
@@ -2485,7 +2535,8 @@ def refine_matches_with_ai(
         # returns malformed JSON, fall back to local scoring instead of making
         # a second repair request.
         ai_payload = parse_json_object(content)
-        corrected_profile = normalize_technical_profile(capability_profile)
+        ai_profile = ai_payload.get("capability_profile") if isinstance(ai_payload.get("capability_profile"), dict) else {}
+        corrected_profile = merge_technical_profiles(capability_profile or {}, ai_profile)
         refined = merge_ai_results(local_results, ai_payload, config)
         ai_ranked_count = sum(
             1 for item in refined if item.get("scoring_source") == "成果能力画像 + AI技术精排"
@@ -4075,16 +4126,78 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True}, headers={"Set-Cookie": cookie})
             return
 
+        if parsed.path == "/api/analyze-achievement":
+            payload = self.read_json()
+            submission = {
+                clean_text(key): clean_text(value)
+                for key, value in payload.items()
+                if isinstance(value, (str, int, float, bool))
+            }
+            if not submission.get("title") and submission.get("achievement_name"):
+                submission["title"] = submission["achievement_name"]
+            if submission.get("achievement_text"):
+                submission["achievement_text"] = clip(submission["achievement_text"], 30000)
+            material = " ".join(
+                clean_text(submission.get(field))
+                for field in (
+                    "achievement_text",
+                    "title",
+                    "summary",
+                    "technical_route",
+                    "problem",
+                    "application_scene",
+                    "indicators",
+                    "evidence",
+                )
+            )
+            if len(material) < 20:
+                self.send_error_json(
+                    HTTPStatus.BAD_REQUEST,
+                    "请粘贴较完整的成果材料，或补充成果名称、技术原理和应用说明。",
+                )
+                return
+            local_tags = extract_submission_tags_local(submission)
+            tag_profile, tag_meta = extract_tags_with_ai(self.ai_config, submission, local_tags)
+            capability_profile = normalize_technical_profile(
+                tag_meta.get("capability_profile") or build_submission_technical_profile(submission)
+            )
+            self.send_json(
+                {
+                    "ok": True,
+                    "used_ai": bool(tag_meta.get("used_ai")),
+                    "source": clean_text(tag_meta.get("source") or "local"),
+                    "message": clean_text(tag_meta.get("message")),
+                    "structured_tags": compact_tag_payload(tag_profile),
+                    "capability_profile": capability_profile,
+                    "form_fields": capability_profile_form_fields(capability_profile),
+                }
+            )
+            return
+
         if parsed.path == "/api/match":
             payload = self.read_json()
+            provided_profile = payload.get("capability_profile") if isinstance(payload.get("capability_profile"), dict) else None
+            provided_tags = payload.get("structured_tags") if isinstance(payload.get("structured_tags"), dict) else None
+            provided_source = clean_text(payload.get("analysis_source") or "")
             match_mode = clean_text(payload.get("match_mode") or payload.get("_match_mode") or "ai").lower()
             if match_mode not in {"quick", "ai"}:
                 match_mode = "ai"
             submission = {
                 clean_text(k): clean_text(v)
                 for k, v in payload.items()
-                if clean_text(k) not in {"match_mode", "_match_mode"}
+                if clean_text(k) not in {
+                    "match_mode",
+                    "_match_mode",
+                    "capability_profile",
+                    "structured_tags",
+                    "analysis_source",
+                }
+                and isinstance(v, (str, int, float, bool))
             }
+            if not submission.get("title") and submission.get("achievement_name"):
+                submission["title"] = submission["achievement_name"]
+            if submission.get("achievement_text"):
+                submission["achievement_text"] = clip(submission["achievement_text"], 30000)
             if clean_text(submission.get("client_source")) in {"网页端", "微信小程序"}:
                 if not all(clean_text(submission.get(field)) for field in ("name", "phone", "company")):
                     self.send_error_json(HTTPStatus.BAD_REQUEST, "请填写姓名、手机号和单位，便于平台后续联系")
@@ -4097,16 +4210,33 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             }
             local_tag_profile = extract_submission_tags_local(submission)
             local_capability_profile = build_submission_technical_profile(submission)
-            tag_profile = local_tag_profile
-            capability_profile = local_capability_profile
-            tag_meta = {
-                "used_ai": False,
-                "source": "local",
-                "local_tags": compact_tag_payload(local_tag_profile),
-                "merged_tags": compact_tag_payload(local_tag_profile),
-                "capability_profile": capability_profile,
-                "message": "已使用本地规则生成初步成果能力画像与召回标签。",
-            }
+            if provided_profile:
+                tag_profile = merge_tag_profiles(local_tag_profile, provided_tags or {})
+                capability_profile = merge_technical_profiles(local_capability_profile, provided_profile)
+                tag_meta = {
+                    "used_ai": "ai" in provided_source,
+                    "source": provided_source or "provided",
+                    "local_tags": compact_tag_payload(local_tag_profile),
+                    "merged_tags": compact_tag_payload(tag_profile),
+                    "capability_profile": capability_profile,
+                    "message": "已使用提交前生成的成果能力画像召回候选需求。",
+                }
+            elif match_mode == "ai":
+                tag_profile, tag_meta = extract_tags_with_ai(self.ai_config, submission, local_tag_profile)
+                capability_profile = normalize_technical_profile(
+                    tag_meta.get("capability_profile") or local_capability_profile
+                )
+            else:
+                tag_profile = local_tag_profile
+                capability_profile = local_capability_profile
+                tag_meta = {
+                    "used_ai": False,
+                    "source": "local",
+                    "local_tags": compact_tag_payload(local_tag_profile),
+                    "merged_tags": compact_tag_payload(local_tag_profile),
+                    "capability_profile": capability_profile,
+                    "message": "已使用本地规则生成初步成果能力画像与召回标签。",
+                }
             local_results = match_demands(
                 self.store,
                 submission,

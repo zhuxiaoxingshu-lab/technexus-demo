@@ -3,6 +3,7 @@ const api = require("../../utils/api");
 function hasUsefulContent(payload) {
   return [
     payload.title,
+    payload.achievement_text,
     payload.tech_field,
     payload.summary,
     payload.technical_route,
@@ -38,22 +39,44 @@ Page({
       wx.showToast({ title: "请至少填写一项成果信息", icon: "none" });
       return;
     }
+    if (!String(payload.title || "").trim()) {
+      wx.showToast({ title: "请填写成果名称", icon: "none" });
+      return;
+    }
+    const fullText = String(payload.achievement_text || "").trim();
+    if (fullText.length < 50 && !String(payload.summary || payload.technical_route || "").trim()) {
+      wx.showToast({ title: "请粘贴较完整的成果材料", icon: "none" });
+      return;
+    }
 
     const app = getApp();
     app.globalData.matchMode = this.data.matchMode;
     app.globalData.submission = payload;
     this.setData({ loading: true });
     wx.showLoading({
-      title: this.data.matchMode === "quick" ? "快速匹配中" : "AI匹配中",
+      title: this.data.matchMode === "quick" ? "快速匹配中" : "AI拆解成果中",
       mask: true
     });
     const progressTimer = this.data.matchMode === "ai"
       ? setTimeout(() => {
-          wx.showLoading({ title: "AI复核中", mask: true });
-        }, 8000)
+          wx.showLoading({ title: "正在生成画像", mask: true });
+        }, 10000)
       : null;
 
-    api.matchDemands(payload)
+    const request = this.data.matchMode === "ai"
+      ? api.analyzeAchievement(payload).then((analysis) => {
+          app.globalData.capabilityProfile = analysis.capability_profile || {};
+          wx.showLoading({ title: "正在匹配需求", mask: true });
+          return api.matchDemands({
+            ...payload,
+            capability_profile: analysis.capability_profile || {},
+            structured_tags: analysis.structured_tags || {},
+            analysis_source: analysis.source || "local"
+          });
+        })
+      : api.matchDemands(payload);
+
+    request
       .then((response) => {
         app.globalData.submissionId = response.submission_id || "";
         app.globalData.matchMeta = response.ai_meta || {};

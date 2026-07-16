@@ -6,8 +6,8 @@
       <view>
         <text class="eyebrow">技术成果提交</text>
         <view class="hero-main">
-          <text class="hero-title">把成果说清楚，系统才更容易找到真正适合的需求</text>
-          <text class="hero-copy">联系人信息为必填；成果摘要、应用场景、优势和成熟度写得越具体，快速匹配和 AI 智能匹配都会更准。</text>
+          <text class="hero-title">粘贴完整成果，让 AI 拆解后精准匹配</text>
+          <text class="hero-copy">直接粘贴专利、论文、技术说明或项目材料，AI 会提取技术标的、核心问题、技术路线、指标和证据，再与需求正文逐项对照。</text>
         </view>
       </view>
     </view>
@@ -56,7 +56,7 @@
     <view class="band">
       <view class="band-header">
         <text class="section-title">基础信息</text>
-        <text class="muted">先告诉我们这项成果是什么、处于什么阶段、希望往哪里对接。</text>
+        <text class="muted">成果名称必填，其他基础信息可由 AI 从材料中识别或由你补充。</text>
       </view>
 
       <label class="field">
@@ -87,10 +87,16 @@
 
     <view class="band">
       <view class="band-header">
-        <text class="section-title">技术描述</text>
-        <text class="muted">这一部分越具体，后面的理由解释和人工撮合效率就越高。</text>
+        <text class="section-title">粘贴成果材料</text>
+        <text class="muted">可粘贴专利交底书、论文摘要与关键章节、项目介绍、技术说明书或检测报告。</text>
       </view>
 
+      <label class="field">
+        <text class="field-label">成果完整材料（建议必填）</text>
+        <textarea class="textarea achievement-textarea" name="achievement_text" maxlength="-1" placeholder="请直接粘贴完整成果材料。内容越完整，AI 对技术标的、核心问题、底层路线、量化指标、验证基础和应用边界的识别越准确。"></textarea>
+      </label>
+      <view class="soft-tip">AI 将自动提取：技术标的、核心问题、所需功能、技术路线、量化指标、验证证据、成熟度和应用边界。</view>
+      <view class="optional-heading">以下为可选补充或校正项</view>
       <label class="field">
         <text class="field-label">应用场景</text>
         <textarea class="textarea" name="application_scene" placeholder="这项成果主要用在哪些行业、产品或生产环节？"></textarea>
@@ -131,7 +137,7 @@
       </view>
       <view class="soft-tip">前台不会展示需求方身份及联系方式；如果匹配后你想继续推进，合作意向会进入后台，由平台人工审核、联系和撮合。</view>
       <view class="actions">
-        <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading}}">开始匹配</button>
+        <button class="btn primary" form-type="submit" loading="{{loading}}" disabled="{{loading}}">{{matchMode == 'ai' ? 'AI拆解并匹配' : '开始快速匹配'}}</button>
       </view>
     </view>
   </form>

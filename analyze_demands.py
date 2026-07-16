@@ -9,6 +9,7 @@ DeepSeek enrichment is optional and can be run in small, restartable batches.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -58,6 +59,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--delay", type=float, default=0.4, help="相邻 DeepSeek 请求之间的间隔秒数")
     parser.add_argument("--max-detail-chars", type=int, default=2200, help="单条需求正文送入 AI 的最大字符数")
     parser.add_argument("--require-ai", action="store_true", help="AI 未配置时直接报错，适合定时任务检查")
+    parser.add_argument("--shard-count", type=int, default=1, help="并行回填分片总数，默认不分片")
+    parser.add_argument("--shard-index", type=int, default=0, help="当前回填分片编号，从 0 开始")
     return parser.parse_args()
 
 
@@ -232,10 +235,20 @@ def chunks(items: list[dict], size: int) -> list[list[dict]]:
     return [items[index : index + size] for index in range(0, len(items), size)]
 
 
+def demand_shard(demand_id: str, shard_count: int) -> int:
+    """Return a stable shard for a demand without depending on Python's hash seed."""
+    digest = hashlib.sha256(clean_text(demand_id).encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % shard_count
+
+
 def main() -> int:
     args = parse_args()
     args.batch_size = max(1, min(8, args.batch_size))
     args.max_detail_chars = max(800, min(5000, args.max_detail_chars))
+    args.shard_count = max(1, args.shard_count)
+    if not 0 <= args.shard_index < args.shard_count:
+        print("shard-index 必须大于等于 0 且小于 shard-count。", file=sys.stderr)
+        return 2
     init_database()
     demands = load_demands_from_database()
     existing = load_demand_analysis_map()
@@ -243,6 +256,7 @@ def main() -> int:
         demand
         for demand in demands
         if clean_text(demand.get(DEMAND_ID_FIELD))
+        and demand_shard(clean_text(demand.get(DEMAND_ID_FIELD)), args.shard_count) == args.shard_index
         and needs_analysis(
             demand,
             existing.get(clean_text(demand.get(DEMAND_ID_FIELD))),
@@ -263,6 +277,8 @@ def main() -> int:
         "analysis_version": DEMAND_ANALYSIS_VERSION,
         "database_demand_count": len(demands),
         "pending_count": len(pending),
+        "shard_index": args.shard_index,
+        "shard_count": args.shard_count,
         "mode": args.mode,
         "use_ai": use_ai,
         "dry_run": args.dry_run,

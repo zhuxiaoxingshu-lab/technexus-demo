@@ -2188,7 +2188,7 @@ body {
 .intro-title {
   margin: 0;
   max-width: 780px;
-  font-size: 44px;
+  font-size: 36px;
   line-height: 1.16;
 }
 
@@ -2562,7 +2562,7 @@ table thead th {
   }
 
   .intro-title {
-    font-size: 40px;
+    font-size: 32px;
   }
 
   .hero-kpis,
@@ -2615,7 +2615,7 @@ table thead th {
   }
 
   .intro-title {
-    font-size: 33px;
+    font-size: 28px;
   }
 
   .hero-kpis strong {

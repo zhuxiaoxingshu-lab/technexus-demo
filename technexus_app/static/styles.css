@@ -2187,9 +2187,13 @@ body {
 
 .intro-title {
   margin: 0;
-  max-width: 680px;
-  font-size: 54px;
-  line-height: 1.12;
+  max-width: 780px;
+  font-size: 44px;
+  line-height: 1.16;
+}
+
+.intro-title span {
+  display: block;
 }
 
 .intro-copy {

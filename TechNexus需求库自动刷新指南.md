@@ -1,5 +1,7 @@
 # TechNexus 需求库自动刷新指南
 
+> 历史说明：GitHub Actions + `DATABASE_URL` 的写入链路已停用。生产同步由阿里云 `technexus-sync.timer` 直接写入唯一线上 SQLite，并在同一服务中完成本地需求拆解；当前规则见 `PROJECT_MEMORY.md`。
+
 ## 已实现的刷新方式
 
 系统现在支持把 JSTEC 最新技术需求增量同步到数据库。
@@ -79,4 +81,3 @@ python sync_jstec_demands.py
 2. 前台本来就不展示需求方联系方式，所以这不影响用户匹配和合作意向提交。
 3. 如果 JSTEC 某条需求详情接口报错，脚本会用列表页信息占位并继续，不会因为单条异常中断整个刷新。
 4. 如果未来 JSTEC 接口规则变化，脚本日志会显示失败原因，再针对接口调整即可。
-

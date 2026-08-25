@@ -1,5 +1,7 @@
 # TechNexus 技术经理人部署版说明
 
+> 历史说明：本文保留 Render / PostgreSQL 旧方案供参考，不再代表生产架构。当前唯一生产环境为阿里云，唯一线上数据库为 `/opt/technexus/technexus_data/technexus.db`，以 `PROJECT_MEMORY.md` 为准。
+
 ## 1. 部署版目标
 
 这份目录已经整理为可部署版本：本地继续能运行，后续也可以复制到云服务器，作为网页内测版使用。

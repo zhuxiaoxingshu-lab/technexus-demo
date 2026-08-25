@@ -1,3 +1,5 @@
+# Legacy Render demo definition only. Production is Alibaba Cloud and uses the
+# SQLite + systemd architecture documented in PROJECT_MEMORY.md.
 services:
   - type: web
     name: technexus

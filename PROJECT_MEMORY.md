@@ -23,7 +23,7 @@
 
 1. `technexus-sync.timer` 每天触发 `technexus-sync.service`。
 2. 同步前先用 SQLite Online Backup API 创建并校验一致性备份。
-3. `sync_jstec_demands.py` 增量获取新需求并写入线上 SQLite。
+3. `sync_jstec_demands.py` 至少扫描最近 60 页，补齐新增需求或历史缺口并写入线上 SQLite。
 4. `analyze_demands.py --mode local --limit 0` 为所有新增或过期需求生成结构化画像。
 5. Web 进程通过数据库版本变化自动重新加载需求，无需维护第二套数据副本。
 

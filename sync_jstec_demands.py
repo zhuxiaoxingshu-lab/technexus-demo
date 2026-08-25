@@ -97,7 +97,7 @@ def fetch_recent_new_rows(args: argparse.Namespace) -> tuple[list[dict], dict[st
                 continue
             if demand_id in known_ids:
                 known_streak += 1
-                if known_streak >= args.stop_after_known:
+                if known_streak >= args.stop_after_known and page >= args.minimum_pages:
                     return new_rows, {
                         "pages_scanned": pages_scanned,
                         "known_streak": known_streak,
@@ -148,6 +148,7 @@ def fetch_recent_new_rows(args: argparse.Namespace) -> tuple[list[dict], dict[st
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="增量同步 JSTEC 最新技术需求到 TechNexus 需求库")
     parser.add_argument("--max-pages", type=int, default=12, help="最多扫描前多少页")
+    parser.add_argument("--minimum-pages", type=int, default=0, help="至少扫描多少页后才允许因连续已知需求提前停止")
     parser.add_argument("--page-size", type=int, default=10, help="每页条数，建议保持 10")
     parser.add_argument("--stop-after-known", type=int, default=30, help="连续遇到多少条已存在需求后停止")
     parser.add_argument("--limit-new", type=int, default=0, help="最多新增多少条；0 表示不限制")
@@ -160,6 +161,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    args.max_pages = max(1, args.max_pages)
+    args.minimum_pages = max(0, min(args.minimum_pages, args.max_pages))
     init_database()
     rows, meta = fetch_recent_new_rows(args)
     if args.dry_run:

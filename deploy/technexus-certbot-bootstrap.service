@@ -1,0 +1,14 @@
+[Unit]
+Description=Obtain the first HTTPS certificate for TechNexus
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/technexus/deploy/obtain_https.sh
+TimeoutStartSec=15min
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /etc/nginx /etc/systemd/system

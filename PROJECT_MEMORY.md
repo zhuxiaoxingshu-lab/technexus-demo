@@ -39,6 +39,7 @@
 - 响应包含 CSP、HSTS、`X-Content-Type-Options`、`X-Frame-Options`、Referrer-Policy、Permissions-Policy。
 - 数据库、管理员配置和备份在 Linux 上使用仅属主可读写权限。
 - `technexus-backup.timer` 每日生成经 `PRAGMA integrity_check` 验证的 gzip 备份，保留 30 天。
+- 新注册域名在注册局 DNS 尚未完全传播时，由 `technexus-certbot-bootstrap.timer` 每 6 小时安全重试首次签发；成功后该引导定时器自动停用，后续由 `certbot-renew.timer` 续期。
 
 ## 部署验收清单
 
@@ -64,3 +65,4 @@
 - 增加应用层请求体限制、AI 限流、后台登录限流、CSRF、安全 Cookie 和响应安全头。
 - 增加 Nginx 限流与安全配置、SQLite 备份脚本、备份定时器和需求同步定时器。
 - 停止 GitHub Actions 写入独立数据库，确定阿里云生产 SQLite 为唯一线上数据源。
+- 增加首次 HTTPS 签发重试定时器，以处理新注册 `.cn` 域名的跨节点 DNS 传播延迟。

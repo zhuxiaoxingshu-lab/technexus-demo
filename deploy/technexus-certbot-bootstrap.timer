@@ -1,0 +1,12 @@
+[Unit]
+Description=Retry initial TechNexus HTTPS issuance after DNS propagation
+
+[Timer]
+OnBootSec=30min
+OnUnitInactiveSec=6h
+Persistent=true
+Unit=technexus-certbot-bootstrap.service
+
+[Install]
+WantedBy=timers.target
+

@@ -1,6 +1,7 @@
 [Unit]
 Description=TechNexus 技术经理人网页服务
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple

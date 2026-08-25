@@ -967,6 +967,7 @@ function renderMatchTable(items) {
     .map((item) => {
       const submission = item.submission || {};
       const results = item.results || [];
+      const hasInternalUnit = Boolean(submission.company);
       return `
         <tr>
           <td>${escapeHtml(item.created_at || "-")}</td>
@@ -975,8 +976,12 @@ function renderMatchTable(items) {
             ${item.ai_message ? `<p class="table-muted">${escapeHtml(item.ai_message)}</p>` : ""}
           </td>
           <td>
-            <strong>匿名技术匹配</strong>
-            <p class="table-muted">联系方式在申请对接后采集</p>
+            <strong>${escapeHtml(hasInternalUnit ? submission.company : "匿名技术匹配")}</strong>
+            <p class="table-muted">${escapeHtml(
+              hasInternalUnit
+                ? `${submission.client_source || "后台单位信息"} · ${submission.name || "技术成果"}`
+                : "联系方式在申请对接后采集",
+            )}</p>
           </td>
           <td>
             <strong>${escapeHtml(submission.title || "技术内容自动分析")}</strong>
@@ -1056,6 +1061,7 @@ function renderMatchDetail(item) {
       <div>
         <span class="muted-label">匹配阶段技术内容</span>
         <h3>${escapeHtml(submission.title || "匿名技术成果")}</h3>
+        ${submission.company ? `<p><strong>${escapeHtml(submission.company)}</strong> · ${escapeHtml(submission.name || "技术成果")}</p>` : ""}
         <p>${escapeHtml(submission.achievement_text || submission.summary || "联系方式将在申请对接后采集")}</p>
       </div>
       <span class="status-pill">${escapeHtml(item.match_mode_label || "匹配记录")}</span>

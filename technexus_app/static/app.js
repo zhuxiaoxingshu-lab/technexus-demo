@@ -1086,6 +1086,7 @@ function renderMatchCandidateFollowup(item) {
         <div>
           <span class="muted-label">${escapeHtml(item.demand_no || item.demand_id || "技术需求")}</span>
           <h3>${escapeHtml(item.name || "未命名需求")}</h3>
+          ${item.demo_below_public_threshold ? '<span class="status-pill">演示补位 · 不用于真实推荐</span>' : ""}
         </div>
         <span class="score-text score-${scoreLevel(item.score)}">${escapeHtml(item.score || "-")}%</span>
       </div>

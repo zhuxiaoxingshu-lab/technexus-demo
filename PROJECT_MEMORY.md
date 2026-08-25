@@ -1,0 +1,66 @@
+# TechNexus / 元数智转项目记忆
+
+最后更新：2026-08-25
+
+## 不可变产品约束
+
+- 技术成果首次提交只有一个大文本框，字段名为 `achievement_text`。
+- 首次匹配不采集姓名、手机号、单位，也不要求登录。
+- 用户选中某条需求并点击“申请对接”后，才采集姓名、手机号和单位，并确认撮合协议。
+- 前台不展示需求方身份及联系方式；相关信息只对已登录后台管理员可见。
+- 每次匹配最多公开返回 5 条候选需求；低于相关性门槛的需求不展示。
+
+## 唯一生产架构
+
+- 唯一 Git 仓库：`https://github.com/zhuxiaoxingshu-lab/technexus-demo.git`
+- 唯一主工作副本：本文件所在的 `TechNexus_deploy_package` 目录。
+- 生产主机：阿里云轻量应用服务器，区域 `cn-hongkong`，应用目录 `/opt/technexus`。
+- 正式域名：`yuanshuzhuan.cn`、`www.yuanshuzhuan.cn`。
+- 唯一线上数据库：`/opt/technexus/technexus_data/technexus.db`（SQLite）。
+- GitHub Actions 不再写另一套 `DATABASE_URL` 数据库；生产数据同步由阿里云上的 systemd 定时任务负责。
+
+## 生产同步链路
+
+1. `technexus-sync.timer` 每天触发 `technexus-sync.service`。
+2. 同步前先用 SQLite Online Backup API 创建并校验一致性备份。
+3. `sync_jstec_demands.py` 增量获取新需求并写入线上 SQLite。
+4. `analyze_demands.py --mode local --limit 0` 为所有新增或过期需求生成结构化画像。
+5. Web 进程通过数据库版本变化自动重新加载需求，无需维护第二套数据副本。
+
+批量 DeepSeek 画像回填默认关闭，避免无上限 API 成本；需要提升画像质量时再以受控批次手工开启。用户当前优先要求“确认已分解”，本地结构化画像满足该阶段目标。
+
+## 安全与运维基线
+
+- Nginx 强制 HTTPS，证书由 Certbot / Let's Encrypt 续期。
+- 请求体上限为 128 KB；AI 接口、普通 API 和后台登录分别限流。
+- 应用层再次限制单 IP 的 AI 请求；后台连续失败登录受限。
+- 管理员 Cookie 使用 `HttpOnly; SameSite=Strict; Secure`，管理写操作需要 CSRF Token。
+- 后台入口不出现在公开导航，直接访问 `/admin`。
+- 响应包含 CSP、HSTS、`X-Content-Type-Options`、`X-Frame-Options`、Referrer-Policy、Permissions-Policy。
+- 数据库、管理员配置和备份在 Linux 上使用仅属主可读写权限。
+- `technexus-backup.timer` 每日生成经 `PRAGMA integrity_check` 验证的 gzip 备份，保留 30 天。
+
+## 部署验收清单
+
+- `https://yuanshuzhuan.cn/` 和 `https://www.yuanshuzhuan.cn/` 有效，HTTP 自动跳转 HTTPS。
+- 首页和成果提交页只出现技术内容大文本框，不出现联系方式。
+- 技术内容少于 20 字被拒绝；正常内容能返回匹配结果。
+- “申请对接”页面要求姓名、手机号、单位和协议确认。
+- `/admin` 可登录，公开导航没有后台入口；无会话访问后台 API 返回 401。
+- 登录失败限流、AI 限流、128 KB 请求体限制、安全响应头均可观察。
+- `systemctl list-timers` 能看到备份和需求同步定时器。
+- 最新备份可解压，`PRAGMA integrity_check` 返回 `ok`。
+- 线上 `demand_analyses` 数量应与 `demands` 数量一致或仅有短暂同步差。
+
+## 保密规则
+
+本文件不得记录 API Key、管理员密码、Cookie、个人联系方式或其他密钥。秘密只存放在服务器 `/etc/technexus/technexus.env` 或权限为 `600` 的配置文件中。
+
+## 2026-08-25 变更记录
+
+- 确认域名实名认证审核通过，DNS 已指向生产 IP。
+- 选定 `TechNexus_deploy_package` 为唯一主工作副本，并保留此前线上首页标题优化。
+- 将成果提交重构为单技术内容框，联系方式后移至“申请对接”。
+- 增加应用层请求体限制、AI 限流、后台登录限流、CSRF、安全 Cookie 和响应安全头。
+- 增加 Nginx 限流与安全配置、SQLite 备份脚本、备份定时器和需求同步定时器。
+- 停止 GitHub Actions 写入独立数据库，确定阿里云生产 SQLite 为唯一线上数据源。

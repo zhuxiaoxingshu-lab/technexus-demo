@@ -37,6 +37,9 @@ DATABASE_URL = os.getenv("TECHNEXUS_DATABASE_URL") or os.getenv("DATABASE_URL") 
 DEMAND_ANALYSIS_VERSION = "demand-profile-v1"
 SESSION_COOKIE = "technexus_admin_session"
 SESSION_SECONDS = 8 * 60 * 60
+MAX_REQUEST_BODY_BYTES = max(32 * 1024, min(1024 * 1024, int(os.getenv("TECHNEXUS_MAX_REQUEST_BYTES") or 128 * 1024)))
+AI_REQUEST_LIMIT = max(2, int(os.getenv("TECHNEXUS_AI_RATE_LIMIT") or 12))
+AI_REQUEST_WINDOW_SECONDS = max(60, int(os.getenv("TECHNEXUS_AI_RATE_WINDOW") or 10 * 60))
 AGREEMENT_VERSION = "TechNexus-2026-06-01-v2"
 PUBLIC_RESPONSE_PROMISE = "平台将在 3 个工作日内完成初步审核或联系。"
 PROGRESS_STEPS = [
@@ -2594,6 +2597,17 @@ def use_quick_match(local_results: list[dict]) -> tuple[list[dict], dict]:
 
 def ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    restrict_file_permissions(DATA_DIR, directory=True)
+
+
+def restrict_file_permissions(path: Path, *, directory: bool = False) -> None:
+    """Apply owner-only permissions on Linux without breaking Windows development."""
+    if os.name == "nt" or not path.exists():
+        return
+    try:
+        path.chmod(0o700 if directory else 0o600)
+    except OSError:
+        pass
 
 
 def append_jsonl(name: str, payload: dict) -> None:
@@ -3043,6 +3057,8 @@ def init_database() -> None:
     migrate_database_schema()
     migrate_jsonl_to_database()
     migrate_demands_file_to_database()
+    if not using_postgres():
+        restrict_file_permissions(DB_FILE)
 
 
 def column_exists(conn: object, table: str, column: str) -> bool:
@@ -3897,6 +3913,7 @@ def ensure_admin_config() -> dict:
             "note": "由环境变量 TECHNEXUS_ADMIN_PASSWORD 生成管理员配置。",
         }
         ADMIN_CONFIG_FILE.write_text(json_dumps(config), encoding="utf-8")
+        restrict_file_permissions(ADMIN_CONFIG_FILE)
         return config
 
     if not ADMIN_CONFIG_FILE.exists():
@@ -3910,11 +3927,13 @@ def ensure_admin_config() -> dict:
             "note": "首次自动生成管理员配置。请尽快运行 set_admin_password.py 修改密码。",
         }
         ADMIN_CONFIG_FILE.write_text(json_dumps(config), encoding="utf-8")
+        restrict_file_permissions(ADMIN_CONFIG_FILE)
         if not os.getenv("TECHNEXUS_ADMIN_PASSWORD"):
             (DATA_DIR / "initial_admin_password.txt").write_text(
                 f"TechNexus 初始管理员账号：{username}\nTechNexus 初始管理员密码：{password}\n请登录后尽快修改密码。\n",
                 encoding="utf-8",
             )
+            restrict_file_permissions(DATA_DIR / "initial_admin_password.txt")
         return config
     try:
         config = json.loads(ADMIN_CONFIG_FILE.read_text(encoding="utf-8-sig"))
@@ -3933,11 +3952,14 @@ def ensure_admin_config() -> dict:
             "note": "管理员配置被修复。请尽快运行 set_admin_password.py 修改密码。",
         }
         ADMIN_CONFIG_FILE.write_text(json_dumps(config), encoding="utf-8")
+        restrict_file_permissions(ADMIN_CONFIG_FILE)
         if not os.getenv("TECHNEXUS_ADMIN_PASSWORD"):
             (DATA_DIR / "initial_admin_password.txt").write_text(
                 f"TechNexus 初始管理员账号：{username}\nTechNexus 初始管理员密码：{password}\n请登录后尽快修改密码。\n",
                 encoding="utf-8",
             )
+            restrict_file_permissions(DATA_DIR / "initial_admin_password.txt")
+    restrict_file_permissions(ADMIN_CONFIG_FILE)
     return config
 
 
@@ -3970,7 +3992,36 @@ def parse_cookie(header: str) -> dict[str, str]:
     return cookies
 
 
+class SlidingWindowRateLimiter:
+    def __init__(self) -> None:
+        self._events: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def allow(self, key: str, *, limit: int, window_seconds: int) -> tuple[bool, int]:
+        now = time.time()
+        cutoff = now - window_seconds
+        with self._lock:
+            events = [timestamp for timestamp in self._events.get(key, []) if timestamp > cutoff]
+            if len(events) >= limit:
+                retry_after = max(1, math.ceil(events[0] + window_seconds - now))
+                self._events[key] = events
+                return False, retry_after
+            events.append(now)
+            self._events[key] = events
+        return True, 0
+
+    def reset(self, key: str) -> None:
+        with self._lock:
+            self._events.pop(key, None)
+
+
+ai_request_limiter = SlidingWindowRateLimiter()
+admin_login_limiter = SlidingWindowRateLimiter()
+
+
 class TechNexusHandler(BaseHTTPRequestHandler):
+    server_version = "TechNexus"
+    sys_version = ""
     store: DemandStore
     ai_config: dict
     admin_config: dict
@@ -3981,7 +4032,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path in {"", "/"}:
+        if parsed.path in {"", "/", "/admin"}:
             self.send_static(STATIC_DIR / "index.html")
             return
         if parsed.path.startswith("/static/"):
@@ -3990,7 +4041,14 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/admin/session":
             username = self.current_admin()
-            self.send_json({"authenticated": bool(username), "username": username})
+            session = self.current_admin_session()
+            self.send_json(
+                {
+                    "authenticated": bool(username),
+                    "username": username,
+                    "csrf_token": clean_text((session or {}).get("csrf_token")),
+                }
+            )
             return
         if parsed.path == "/api/stats":
             self.send_json(
@@ -4089,6 +4147,17 @@ class TechNexusHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         try:
+            content_length = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError:
+            self.send_error_json(HTTPStatus.BAD_REQUEST, "请求长度不正确")
+            return
+        if content_length < 0 or content_length > MAX_REQUEST_BODY_BYTES:
+            self.send_json(
+                {"ok": False, "message": "提交内容过大，请压缩到 128 KB 以内"},
+                status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            )
+            return
+        try:
             self.handle_post_request()
         except (BrokenPipeError, ConnectionResetError):
             return
@@ -4105,6 +4174,19 @@ class TechNexusHandler(BaseHTTPRequestHandler):
     def handle_post_request(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/admin/login":
+            client_ip = self.client_ip()
+            allowed, retry_after = admin_login_limiter.allow(
+                client_ip,
+                limit=5,
+                window_seconds=15 * 60,
+            )
+            if not allowed:
+                self.send_json(
+                    {"ok": False, "message": "后台登录尝试过多，请稍后再试"},
+                    status=HTTPStatus.TOO_MANY_REQUESTS,
+                    headers={"Retry-After": str(retry_after)},
+                )
+                return
             payload = self.read_json()
             username = clean_text(payload.get("username"))
             password = clean_text(payload.get("password"))
@@ -4112,21 +4194,34 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             if not ok:
                 self.send_error_json(HTTPStatus.UNAUTHORIZED, "账号或密码不正确")
                 return
+            admin_login_limiter.reset(client_ip)
             token = secrets.token_urlsafe(32)
-            self.admin_sessions[token] = {"username": admin_username, "expires_at": time.time() + SESSION_SECONDS}
-            cookie = f"{SESSION_COOKIE}={token}; Path=/; Max-Age={SESSION_SECONDS}; HttpOnly; SameSite=Lax"
-            self.send_json({"ok": True, "username": admin_username}, headers={"Set-Cookie": cookie})
+            csrf_token = secrets.token_urlsafe(32)
+            self.admin_sessions[token] = {
+                "username": admin_username,
+                "expires_at": time.time() + SESSION_SECONDS,
+                "csrf_token": csrf_token,
+            }
+            cookie = f"{SESSION_COOKIE}={token}; Path=/; Max-Age={SESSION_SECONDS}; HttpOnly; SameSite=Strict{self.secure_cookie_suffix()}"
+            self.send_json(
+                {"ok": True, "username": admin_username, "csrf_token": csrf_token},
+                headers={"Set-Cookie": cookie},
+            )
             return
 
         if parsed.path == "/api/admin/logout":
+            if not self.require_admin_csrf():
+                return
             token = self.current_session_token()
             if token:
                 self.admin_sessions.pop(token, None)
-            cookie = f"{SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+            cookie = f"{SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{self.secure_cookie_suffix()}"
             self.send_json({"ok": True}, headers={"Set-Cookie": cookie})
             return
 
         if parsed.path == "/api/analyze-achievement":
+            if not self.allow_ai_request():
+                return
             payload = self.read_json()
             submission = {
                 clean_text(key): clean_text(value)
@@ -4175,6 +4270,8 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/match":
+            if not self.allow_ai_request():
+                return
             payload = self.read_json()
             provided_profile = payload.get("capability_profile") if isinstance(payload.get("capability_profile"), dict) else None
             provided_tags = payload.get("structured_tags") if isinstance(payload.get("structured_tags"), dict) else None
@@ -4198,10 +4295,13 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 submission["title"] = submission["achievement_name"]
             if submission.get("achievement_text"):
                 submission["achievement_text"] = clip(submission["achievement_text"], 30000)
-            if clean_text(submission.get("client_source")) in {"网页端", "微信小程序"}:
-                if not all(clean_text(submission.get(field)) for field in ("name", "phone", "company")):
-                    self.send_error_json(HTTPStatus.BAD_REQUEST, "请填写姓名、手机号和单位，便于平台后续联系")
-                    return
+            material = " ".join(
+                clean_text(submission.get(field))
+                for field in ("achievement_text", "title", "summary", "technical_route", "problem", "application_scene")
+            )
+            if len(material) < 20:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, "请至少填写 20 个字的技术内容")
+                return
             submission_id = uuid.uuid4().hex
             record = {
                 "submission_id": submission_id,
@@ -4345,7 +4445,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/intents/status":
-            operator = self.require_admin()
+            operator = self.require_admin_csrf()
             if not operator:
                 return
             payload = self.read_json()
@@ -4370,7 +4470,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/matches/followup":
-            if not self.require_admin():
+            if not self.require_admin_csrf():
                 return
             payload = self.read_json()
             try:
@@ -4398,16 +4498,20 @@ class TechNexusHandler(BaseHTTPRequestHandler):
         return clean_text(cookies.get(SESSION_COOKIE))
 
     def current_admin(self) -> str:
+        session = self.current_admin_session()
+        return clean_text((session or {}).get("username"))
+
+    def current_admin_session(self) -> dict | None:
         token = self.current_session_token()
         if not token:
-            return ""
+            return None
         session = self.admin_sessions.get(token)
         if not session:
-            return ""
+            return None
         if float(session.get("expires_at", 0)) < time.time():
             self.admin_sessions.pop(token, None)
-            return ""
-        return clean_text(session.get("username"))
+            return None
+        return session
 
     def require_admin(self) -> str:
         username = self.current_admin()
@@ -4415,6 +4519,45 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             self.send_error_json(HTTPStatus.UNAUTHORIZED, "请先登录后台")
             return ""
         return username
+
+    def require_admin_csrf(self) -> str:
+        username = self.require_admin()
+        if not username:
+            return ""
+        session = self.current_admin_session() or {}
+        expected = clean_text(session.get("csrf_token"))
+        provided = clean_text(self.headers.get("X-CSRF-Token"))
+        if not expected or not provided or not hmac.compare_digest(expected, provided):
+            self.send_error_json(HTTPStatus.FORBIDDEN, "安全校验失败，请刷新后台后重试")
+            return ""
+        return username
+
+    def client_ip(self) -> str:
+        forwarded = clean_text(self.headers.get("X-Forwarded-For"))
+        if forwarded:
+            return clean_text(forwarded.split(",", 1)[0])
+        return clean_text(self.client_address[0] if self.client_address else "unknown")
+
+    def allow_ai_request(self) -> bool:
+        allowed, retry_after = ai_request_limiter.allow(
+            self.client_ip(),
+            limit=AI_REQUEST_LIMIT,
+            window_seconds=AI_REQUEST_WINDOW_SECONDS,
+        )
+        if allowed:
+            return True
+        self.send_json(
+            {"ok": False, "message": "AI 匹配请求过于频繁，请稍后再试"},
+            status=HTTPStatus.TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(retry_after)},
+        )
+        return False
+
+    def request_is_https(self) -> bool:
+        return clean_text(self.headers.get("X-Forwarded-Proto")).lower() == "https" or os.getenv("TECHNEXUS_HTTPS_ONLY") == "1"
+
+    def secure_cookie_suffix(self) -> str:
+        return "; Secure" if self.request_is_https() else ""
 
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0") or "0")
@@ -4435,6 +4578,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
         self.send_response(status.value)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_security_headers(no_store=True)
         for key, value in (headers or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -4454,6 +4598,7 @@ class TechNexusHandler(BaseHTTPRequestHandler):
         self.send_response(status.value)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content)))
+        self.send_security_headers(no_store=True)
         for key, value in (headers or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -4479,8 +4624,25 @@ class TechNexusHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK.value)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content)))
+        self.send_security_headers(no_store=resolved.suffix == ".html")
         self.end_headers()
         self.wfile.write(content)
+
+    def send_security_headers(self, *, no_store: bool) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self'; img-src 'self' data:; "
+            "connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; "
+            "upgrade-insecure-requests",
+        )
+        if no_store:
+            self.send_header("Cache-Control", "no-store")
+        if self.request_is_https():
+            self.send_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 
 
 def run(host: str, port: int, open_browser: bool) -> None:

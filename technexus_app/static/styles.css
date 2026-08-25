@@ -419,6 +419,21 @@ textarea {
   line-height: 1.6;
 }
 
+.single-input-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.achievement-textarea {
+  min-height: 300px;
+  padding: 18px;
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.quick-form .achievement-textarea {
+  min-height: 190px;
+}
+
 input:focus,
 select:focus,
 textarea:focus {

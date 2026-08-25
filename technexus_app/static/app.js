@@ -12,6 +12,7 @@ const state = {
   publicDemandTotal: 0,
   adminAuthenticated: false,
   adminUsername: "",
+  adminCsrfToken: "",
   adminStatuses: [],
   intentFilters: {
     status: "",
@@ -25,9 +26,9 @@ const state = {
 const titleMap = {
   home: ["技术成果找需求", "提交技术成果，AI 匹配真实技术需求，合作意向由平台人工审核撮合。"],
   demands: ["技术需求大厅", "浏览真实需求样本，提交成果后由 AI 从完整需求库精准匹配。"],
-  submit: ["成果提交", "填写联系人信息与技术资料，开始精准匹配。"],
+  submit: ["成果提交", "粘贴一段完整技术内容，系统自动分析并匹配。"],
   results: ["匹配结果", "展示匹配分数、具体技术需求和合作建议，不展示需求方身份及联系方式。"],
-  intent: ["合作意向", "确认中介服务协议后，线索进入后台审核。"],
+  intent: ["申请对接", "选中需求后填写联系方式并确认协议，进入平台人工审核。"],
   progress: ["进度查询", "输入查询码，查看技术撮合对接进度。"],
   admin: ["后台管理", "管理需求库、匹配记录、合作意向和协议确认。"],
 };
@@ -94,9 +95,15 @@ function showView(id) {
 async function api(path, options = {}) {
   let response;
   try {
+    const method = String(options.method || "GET").toUpperCase();
+    const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+    const csrfProtectedPaths = new Set(["/api/admin/logout", "/api/intents/status", "/api/matches/followup"]);
+    if (method !== "GET" && state.adminCsrfToken && csrfProtectedPaths.has(path)) {
+      headers["X-CSRF-Token"] = state.adminCsrfToken;
+    }
     response = await fetch(path, {
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
       ...options,
+      headers,
     });
   } catch (error) {
     throw new Error("暂时无法连接线上服务，请检查网络后重试。");
@@ -142,10 +149,7 @@ function fillSubmissionForm(payload) {
 
 function homePayload() {
   return {
-    title: $("#home-title").value.trim(),
-    tech_field: $("#home-field").value.trim(),
-    summary: $("#home-summary").value.trim(),
-    application_scene: $("#home-summary").value.trim(),
+    achievement_text: $("#home-achievement-text").value.trim(),
   };
 }
 
@@ -195,13 +199,13 @@ function setMatchMode(mode) {
 
 async function runMatch(payload, button) {
   const data = payload || formDataToObject($("#submission-form"));
-  const isFullSubmission = !payload;
-  if (isFullSubmission && (!data.name?.trim() || !data.phone?.trim() || !data.company?.trim())) {
-    toast("请填写姓名、手机号和单位");
+  const achievementText = String(data.achievement_text || "").trim();
+  if (achievementText.length < 20) {
+    toast("请至少填写 20 个字的技术内容");
     return;
   }
   data.match_mode = state.matchMode;
-  data.client_source = data.client_source || (isFullSubmission ? "网页端" : "网页端体验");
+  data.client_source = data.client_source || "网页端";
   state.submission = data;
   state.matchMeta = {};
   setButtonLoading(button, true, state.matchMode === "quick" ? "快速匹配中" : "AI匹配中");
@@ -524,7 +528,7 @@ function renderResults(results) {
           <div class="reason">${escapeHtml(item.reason)}</div>
           <div class="suggestion">${escapeHtml(item.suggestion)}</div>
           <div class="top-actions left">
-            <button class="btn primary" data-intent-index="${index}"><i data-lucide="handshake"></i>我想合作</button>
+            <button class="btn primary" data-intent-index="${index}"><i data-lucide="handshake"></i>申请对接</button>
           </div>
         </article>
       `;
@@ -582,7 +586,7 @@ function renderSelectedDemand() {
   const box = $("#selected-demand");
   const item = state.selectedResult;
   if (!item) {
-    box.textContent = "请先在匹配结果中选择“我想合作”的需求。";
+    box.textContent = "请先在匹配结果中选择“申请对接”的需求。";
     return;
   }
   box.innerHTML = `
@@ -624,7 +628,7 @@ async function submitIntent(button) {
     agreement,
     contact: {
       ...contact,
-      technology_summary: state.submission.summary || state.submission.title || "",
+      technology_summary: state.submission.achievement_text || state.submission.summary || state.submission.title || "",
     },
     message: form.message || "",
     extra_note: form.extra_note || state.submission.extra_note || "",
@@ -790,6 +794,7 @@ async function loadPublicDemands(reset = false) {
 async function loadAdmin() {
   try {
     const session = await api("/api/admin/session");
+    state.adminCsrfToken = session.csrf_token || "";
     setAdminView(session.authenticated, session.username || "");
     if (!session.authenticated) {
       resetAdminData();
@@ -921,6 +926,7 @@ async function loginAdmin(button) {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    state.adminCsrfToken = response.csrf_token || "";
     setAdminView(true, response.username || payload.username || "admin");
     $("#admin-login-form").reset();
     toast("后台登录成功");
@@ -939,6 +945,7 @@ async function logoutAdmin() {
     // Even if the server session expired, the UI should return to the login state.
   }
   setAdminView(false, "");
+  state.adminCsrfToken = "";
   $("#demand-preview").dataset.loaded = "";
   state.currentMatch = null;
   $("#match-table").innerHTML = `<tr><td colspan="7">请先登录后台</td></tr>`;
@@ -968,12 +975,11 @@ function renderMatchTable(items) {
             ${item.ai_message ? `<p class="table-muted">${escapeHtml(item.ai_message)}</p>` : ""}
           </td>
           <td>
-            <strong>${escapeHtml(submission.name || "未填写")}</strong>
-            <p class="table-muted">${escapeHtml(submission.phone || "未填写手机号")}</p>
-            <p class="table-muted">${escapeHtml(submission.company || "未填写单位")}</p>
+            <strong>匿名技术匹配</strong>
+            <p class="table-muted">联系方式在申请对接后采集</p>
           </td>
           <td>
-            <strong>${escapeHtml(submission.title || "未填写成果名称")}</strong>
+            <strong>${escapeHtml(submission.title || "技术内容自动分析")}</strong>
             <div class="tags compact-tags">
               ${tag(submission.tech_field)}
               ${tag(submission.region)}
@@ -984,7 +990,7 @@ function renderMatchTable(items) {
             ${submission.application_scene ? `<p class="table-muted">场景：${escapeHtml(submission.application_scene)}</p>` : ""}
           </td>
           <td class="match-summary">
-            ${escapeHtml(submission.summary || submission.advantage || submission.advantages || submission.problem || "-")}
+            ${escapeHtml(submission.achievement_text || submission.summary || submission.advantage || submission.advantages || submission.problem || "-")}
           </td>
           <td>
             <div class="mini-match-results">
@@ -1048,9 +1054,9 @@ function renderMatchDetail(item) {
   box.innerHTML = `
     <div class="match-detail-summary">
       <div>
-        <span class="muted-label">成果方联系人</span>
-        <h3>${escapeHtml(submission.name || "未填写姓名")} · ${escapeHtml(submission.company || "未填写单位")}</h3>
-        <p>${escapeHtml(submission.phone || "未填写手机号")}｜${escapeHtml(submission.title || "未填写成果名称")}</p>
+        <span class="muted-label">匹配阶段技术内容</span>
+        <h3>${escapeHtml(submission.title || "匿名技术成果")}</h3>
+        <p>${escapeHtml(submission.achievement_text || submission.summary || "联系方式将在申请对接后采集")}</p>
       </div>
       <span class="status-pill">${escapeHtml(item.match_mode_label || "匹配记录")}</span>
     </div>
@@ -1485,4 +1491,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setMatchMode("ai");
   loadStats();
   refreshIcons();
+  if (window.location.pathname === "/admin") {
+    showView("admin");
+  }
 });

@@ -1,60 +1,14 @@
-name: Backfill Demand Profiles
+name: Production Profile Backfill Ownership Notice
 
 on:
   workflow_dispatch:
-    inputs:
-      limit_per_shard:
-        description: "Maximum demands per shard; 0 processes the entire shard"
-        required: false
-        default: "0"
-      batch_size:
-        description: "Demands included in each DeepSeek request"
-        required: false
-        default: "4"
 
 jobs:
-  backfill:
-    name: DeepSeek shard ${{ matrix.shard_index }} of 5
+  production-owner:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
-    strategy:
-      fail-fast: false
-      max-parallel: 5
-      matrix:
-        shard_index: [0, 1, 2, 3, 4]
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      TECHNEXUS_AI_ENABLED: "true"
-      TECHNEXUS_AI_BASE_URL: "https://api.deepseek.com"
-      TECHNEXUS_AI_API_KEY: ${{ secrets.TECHNEXUS_AI_API_KEY }}
-      TECHNEXUS_AI_MODEL: "deepseek-v4-pro"
-      TECHNEXUS_AI_TIMEOUT: "120"
-      LIMIT_PER_SHARD: ${{ github.event.inputs.limit_per_shard || '0' }}
-      BATCH_SIZE: ${{ github.event.inputs.batch_size || '4' }}
-
     steps:
-      - name: Validate required secrets
+      - name: Explain the single production analysis chain
         run: |
-          test -n "$DATABASE_URL" || { echo "DATABASE_URL is not configured"; exit 1; }
-          test -n "$TECHNEXUS_AI_API_KEY" || { echo "TECHNEXUS_AI_API_KEY is not configured"; exit 1; }
-
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Backfill this shard
-        run: >-
-          python analyze_demands.py
-          --mode ai
-          --require-ai
-          --limit "$LIMIT_PER_SHARD"
-          --batch-size "$BATCH_SIZE"
-          --shard-count 5
-          --shard-index "${{ matrix.shard_index }}"
+          echo "Production profile backfill is owned by the Alibaba Cloud technexus-sync service."
+          echo "Run analyze_demands.py on the server so results are written to the live SQLite database."
+          echo "AI bulk backfill remains opt-in to avoid uncontrolled API cost."

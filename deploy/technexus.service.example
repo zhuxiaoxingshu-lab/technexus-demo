@@ -4,14 +4,22 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=technexus
+Group=technexus
 WorkingDirectory=/opt/technexus
+EnvironmentFile=/etc/technexus/technexus.env
 Environment=TECHNEXUS_HOST=127.0.0.1
 Environment=TECHNEXUS_PORT=8010
+Environment=TECHNEXUS_HTTPS_ONLY=1
 ExecStart=/opt/technexus/.venv/bin/python /opt/technexus/technexus_app/app.py --host 127.0.0.1 --port 8010 --no-browser
 Restart=always
 RestartSec=5
+UMask=0077
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/technexus/technexus_data -/opt/technexus/admin_config.json
 
 [Install]
 WantedBy=multi-user.target

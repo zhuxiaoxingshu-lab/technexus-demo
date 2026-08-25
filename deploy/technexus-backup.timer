@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily TechNexus verified database backup
+
+[Timer]
+OnCalendar=*-*-* 00:35:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=technexus-backup.service
+
+[Install]
+WantedBy=timers.target

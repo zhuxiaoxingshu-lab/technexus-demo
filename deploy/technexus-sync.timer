@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily TechNexus production demand synchronization
+
+[Timer]
+OnCalendar=*-*-* 01:10:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=technexus-sync.service
+
+[Install]
+WantedBy=timers.target

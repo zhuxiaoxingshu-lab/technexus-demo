@@ -1,15 +1,44 @@
-server {
-    listen 80;
-    server_name technexus.example.com;
+limit_req_zone $binary_remote_addr zone=technexus_api:10m rate=60r/m;
+limit_req_zone $binary_remote_addr zone=technexus_ai:10m rate=6r/m;
+limit_req_zone $binary_remote_addr zone=technexus_admin_login:10m rate=5r/m;
+limit_conn_zone $binary_remote_addr zone=technexus_connections:10m;
 
-    client_max_body_size 10m;
+server {
+    listen 80 default_server;
+    server_name yuanshuzhuan.cn www.yuanshuzhuan.cn;
+
+    server_tokens off;
+    client_max_body_size 128k;
+    limit_conn technexus_connections 20;
+    limit_req_status 429;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location = /api/admin/login {
+        limit_req zone=technexus_admin_login burst=2 nodelay;
+        proxy_pass http://127.0.0.1:8010;
+        include /etc/nginx/conf.d/technexus_proxy.inc;
+    }
+
+    location ~ ^/api/(analyze-achievement|match)$ {
+        limit_req zone=technexus_ai burst=3 nodelay;
+        proxy_pass http://127.0.0.1:8010;
+        include /etc/nginx/conf.d/technexus_proxy.inc;
+    }
+
+    location /api/ {
+        limit_req zone=technexus_api burst=20 nodelay;
+        proxy_pass http://127.0.0.1:8010;
+        include /etc/nginx/conf.d/technexus_proxy.inc;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8010;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        include /etc/nginx/conf.d/technexus_proxy.inc;
     }
 }

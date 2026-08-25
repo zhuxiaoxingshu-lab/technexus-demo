@@ -1,0 +1,16 @@
+[Unit]
+Description=Back up and verify the TechNexus production database
+After=technexus.service
+
+[Service]
+Type=oneshot
+User=technexus
+Group=technexus
+WorkingDirectory=/opt/technexus
+ExecStart=/opt/technexus/.venv/bin/python /opt/technexus/deploy/backup_sqlite.py --source /opt/technexus/technexus_data/technexus.db --backup-dir /opt/technexus/technexus_data/backups --retention-days 30
+UMask=0077
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/technexus/technexus_data

@@ -1,0 +1,21 @@
+[Unit]
+Description=Synchronize and decompose TechNexus production demands
+After=network-online.target technexus.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=technexus
+Group=technexus
+WorkingDirectory=/opt/technexus
+EnvironmentFile=/etc/technexus/technexus.env
+ExecStartPre=/opt/technexus/.venv/bin/python /opt/technexus/deploy/backup_sqlite.py --source /opt/technexus/technexus_data/technexus.db --backup-dir /opt/technexus/technexus_data/backups --retention-days 30
+ExecStart=/opt/technexus/.venv/bin/python /opt/technexus/sync_jstec_demands.py --max-pages 12 --stop-after-known 30 --skip-log /opt/technexus/technexus_data/jstec_sync.skipped.log
+ExecStart=/opt/technexus/.venv/bin/python /opt/technexus/analyze_demands.py --mode local --limit 0
+TimeoutStartSec=45min
+UMask=0077
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/technexus/technexus_data

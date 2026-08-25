@@ -1,6 +1,6 @@
 # TechNexus / 元数智转项目记忆
 
-最后更新：2026-08-25
+最后更新：2026-08-26
 
 ## 不可变产品约束
 
@@ -66,3 +66,11 @@
 - 增加 Nginx 限流与安全配置、SQLite 备份脚本、备份定时器和需求同步定时器。
 - 停止 GitHub Actions 写入独立数据库，确定阿里云生产 SQLite 为唯一线上数据源。
 - 增加首次 HTTPS 签发重试定时器，以处理新注册 `.cn` 域名的跨节点 DNS 传播延迟。
+
+## 2026-08-26 验收状态
+
+- `yuanshuzhuan.cn` 与 `www.yuanshuzhuan.cn` 的 Let's Encrypt 证书已签发，证书有效期至 2026-11-23；HTTP 自动跳转 HTTPS，后续由 `certbot-renew.timer` 续期。
+- 需求同步已至少扫描最近 60 页并补齐历史缺口；线上保留 5,174 条需求，其中包含 51 条源站当前列表已移除的历史库存。
+- `demand_analyses` 为 5,174 条，全部 `ready`、失败 0；需求与画像一一对应。
+- 同步后备份已完成校验和验证、解压恢复及 `PRAGMA integrity_check`，恢复库需求和画像均为 5,174 条。
+- 后台真实会话验证通过：Cookie 含 `HttpOnly; SameSite=Strict; Secure`，无 CSRF 返回 403，正确 CSRF 可进入业务校验。

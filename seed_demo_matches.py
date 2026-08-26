@@ -89,6 +89,23 @@ def demo_id(index: int, kind: str) -> str:
     return f"{DEMO_PREFIX}-{kind}-{index:02d}"
 
 
+def clean_generated_demo_copy(value: object) -> object:
+    if isinstance(value, dict):
+        return {key: clean_generated_demo_copy(item) for key, item in value.items()}
+    if isinstance(value, list):
+        cleaned = [clean_generated_demo_copy(item) for item in value]
+        return [item for item in cleaned if item not in ("", None)]
+    if not isinstance(value, str):
+        return value
+    text = value.replace("【AI演示数据】", "")
+    text = text.replace("AI演示数据；", "")
+    text = text.replace("演示指标包括：", "关键技术指标：")
+    text = text.replace("演示指标包括", "关键技术指标")
+    text = text.replace("演示设定：", "")
+    text = app.clean_text(text)
+    return "" if text in {"演示", "AI演示数据"} else text
+
+
 def load_existing_records() -> list[dict]:
     expected_ids = [demo_id(index, "submission") for index in range(1, len(DEMO_SPECS) + 1)]
     placeholders = ",".join("?" for _ in expected_ids)
@@ -113,12 +130,14 @@ def load_existing_records() -> list[dict]:
 
 def normalize_submission(submission: dict, index: int) -> dict:
     normalized = dict(submission)
-    achievement_text = app.clean_text(normalized.get("achievement_text"))
+    achievement_text = clean_generated_demo_copy(app.clean_text(normalized.get("achievement_text")))
+    summary = clean_generated_demo_copy(app.clean_text(normalized.get("summary")))
     normalized.update(
         {
             "name": TEAM_NAMES[index - 1],
             "client_source": DISPLAY_SOURCE,
-            "achievement_text": achievement_text.removeprefix("【AI演示数据】"),
+            "achievement_text": achievement_text,
+            "summary": summary,
             "maturity": app.clean_text(normalized.get("maturity")).removeprefix("演示设定：")
             or "中试验证阶段",
             "demo_seed_id": demo_id(index, "record"),
@@ -146,8 +165,9 @@ def generation_messages() -> list[dict]:
                 "请严格依据下面固定的20组单位与主题，生成用于后台联调的虚构科研成果。"
                 "不得修改单位名称、序号或主题。每组返回字段：序号、单位、成果名称、技术成果内容。"
                 "技术成果内容为一个160至260个中文字符的完整段落，依次自然说明产业痛点、适用对象、"
-                "核心技术路线、3项可量化的演示指标、当前成熟度或验证条件、可交付物和合作方式。"
-                "所有指标均为演示设定，不得编造可核验的真实项目事实。"
+                "核心技术路线、3项可量化的技术指标、当前成熟度或验证条件、可交付物和合作方式。"
+                "指标作为测试数据拟定，但正文中不得出现AI生成、演示、模拟数据、虚构等提示词；"
+                "不得编造可核验的真实项目事实。"
                 "返回格式必须是 {\"成果列表\":[...]}，数组严格20项。固定清单："
                 + json.dumps(specs, ensure_ascii=False)
             ),
@@ -361,8 +381,7 @@ def normalize_existing_presentation() -> dict:
                 raise RuntimeError(f"记录 {submission_id} 缺少内部测试标识，拒绝修改")
             submission = normalize_submission(submission, index)
             match_submission = normalize_submission(match_submission if isinstance(match_submission, dict) else submission, index)
-            ai_meta = dict(ai_meta) if isinstance(ai_meta, dict) else {}
-            ai_meta["message"] = app.clean_text(ai_meta.get("message")).removeprefix("AI演示数据；")
+            ai_meta = clean_generated_demo_copy(dict(ai_meta) if isinstance(ai_meta, dict) else {})
             ai_meta.pop("demo_source", None)
             app.db_execute(
                 conn,

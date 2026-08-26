@@ -8,7 +8,6 @@ from technexus_app import app
 
 
 DEMO_PREFIX = "nantong-ai-demo-v1"
-INTERNAL_DEMO_SOURCE = "AI演示数据-南通高校科研院所"
 DISPLAY_SOURCE = "高校科研成果库"
 
 DEMO_SPECS = [
@@ -279,7 +278,6 @@ def seed(*, regenerate: bool = False, no_ai_rerank: bool = False) -> dict:
             {
                 "demo_data": True,
                 "demo_seed_id": submission["demo_seed_id"],
-                "demo_source": INTERNAL_DEMO_SOURCE,
                 "structured_tags": app.compact_tag_payload(tag_profile),
                 "capability_profile": app.normalize_technical_profile(
                     ai_meta.get("capability_profile") or capability_profile
@@ -365,6 +363,7 @@ def normalize_existing_presentation() -> dict:
             match_submission = normalize_submission(match_submission if isinstance(match_submission, dict) else submission, index)
             ai_meta = dict(ai_meta) if isinstance(ai_meta, dict) else {}
             ai_meta["message"] = app.clean_text(ai_meta.get("message")).removeprefix("AI演示数据；")
+            ai_meta.pop("demo_source", None)
             app.db_execute(
                 conn,
                 "UPDATE submissions SET submission_json = ? WHERE submission_id = ?",

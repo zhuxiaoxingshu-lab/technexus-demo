@@ -82,3 +82,4 @@
 - 共保存 92 条候选关系和 20 条演示跟进记录，覆盖 11 种跟进状态。为保证部分低相关主题的后台卡片密度，其中 8 条 38–42 分候选以 `demo_below_public_threshold` 标记保留，后台详情显示“演示补位 · 不用于真实推荐”；真实用户仍执行 45 分公开展示门槛。
 - 演示记录均带 `【AI演示数据】` 和 `demo_seed_id`，不含手机号，也没有创建合作意向；联系方式仍只在真实用户点击“申请对接”后采集。
 - 幂等生成脚本为 `seed_demo_matches.py`。重复执行会复用同一批 AI 成果并更新固定记录，不会重复增加；需要清理时运行 `python seed_demo_matches.py --delete`，只删除 `nantong-ai-demo-v1-*` 固定 ID 的演示提交、匹配和跟进数据。
+- 演示数据写入后的恢复点为 `/opt/technexus/technexus_data/backups/technexus-20260826T000238Z.db.gz`；已实际解压验证 `PRAGMA integrity_check = ok`，其中演示提交、匹配、跟进记录均为 20 条。

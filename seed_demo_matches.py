@@ -8,7 +8,8 @@ from technexus_app import app
 
 
 DEMO_PREFIX = "nantong-ai-demo-v1"
-DEMO_SOURCE = "AI演示数据-南通高校科研院所"
+INTERNAL_DEMO_SOURCE = "AI演示数据-南通高校科研院所"
+DISPLAY_SOURCE = "高校科研成果库"
 
 DEMO_SPECS = [
     ("南通大学", "面向纺织面料的低样本视觉瑕疵识别与在线分级"),
@@ -47,6 +48,43 @@ FOLLOWUP_STATUSES = [
     "不再跟进",
 ]
 
+TEAM_NAMES = [
+    "智能纺织与机器视觉课题组",
+    "绿色染整技术课题组",
+    "船舶智能运维课题组",
+    "智能焊接与机器人课题组",
+    "智慧农业装备课题组",
+    "新能源汽车安全课题组",
+    "智慧供应链课题组",
+    "教育数字化研究团队",
+    "智能康复技术课题组",
+    "先进封装检测课题组",
+    "海上风电智能运维课题组",
+    "复合材料工程课题组",
+    "海洋工程监测课题组",
+    "纺织低碳制造课题组",
+    "港口装备智能运维课题组",
+    "精密视觉测量课题组",
+    "智慧水产技术课题组",
+    "新型储能控制课题组",
+    "工业互联网安全课题组",
+    "海岸带遥感应用课题组",
+]
+
+FOLLOWUP_COPY = {
+    "待联系成果方": ("已完成成果资料初审，准备与成果团队确认技术参数和合作边界。", "待确认技术负责人和可提供的验证材料。"),
+    "已联系成果方": ("已向成果团队发送需求摘要，等待补充样品条件与指标说明。", "成果方正在整理技术说明和阶段性验证材料。"),
+    "待联系需求方": ("成果技术路线已初步核对，准备向需求方确认现场工况。", "待需求方补充应用对象、接口条件和验收指标。"),
+    "已联系需求方": ("已与需求方沟通应用场景，对方希望进一步查看技术参数。", "正在整理双方问题清单，准备开展第二轮技术核对。"),
+    "双方沟通中": ("双方已交换技术摘要和需求边界，正在逐项核对关键指标。", "当前重点确认样品、测试环境和联合验证周期。"),
+    "已安排会议": ("已协调成果方与需求方参加线上技术交流会。", "会议议题包括技术路线、验证方案、交付形式和费用边界。"),
+    "已发送材料": ("技术说明、匹配依据和初步合作建议已发送双方。", "等待双方反馈材料问题并确认下一次沟通时间。"),
+    "已签约": ("双方已确认合作文本，进入项目启动准备阶段。", "正在确认项目计划、里程碑和首批交付资料。"),
+    "已成交": ("双方已完成合作确认，平台进入交付跟踪阶段。", "按约定里程碑跟进验证结果与后续服务事项。"),
+    "暂停跟进": ("因验证条件尚未落实，本轮对接暂时暂停。", "保留现有材料，待样品或现场条件具备后重新启动。"),
+    "不再跟进": ("当前技术路线与需求重点存在偏差，本轮暂不继续推进。", "记录终止原因，后续出现更合适需求时重新评估。"),
+}
+
 
 def demo_id(index: int, kind: str) -> str:
     return f"{DEMO_PREFIX}-{kind}-{index:02d}"
@@ -65,12 +103,29 @@ def load_existing_records() -> list[dict]:
     if len(found) != len(expected_ids):
         return []
     records: list[dict] = []
-    for submission_id in expected_ids:
+    for index, submission_id in enumerate(expected_ids, start=1):
         payload = app.decode_json_field(found[submission_id].get("submission_json"), {})
-        if not isinstance(payload, dict) or payload.get("client_source") != DEMO_SOURCE:
+        expected_seed_id = demo_id(index, "record")
+        if not isinstance(payload, dict) or payload.get("demo_seed_id") != expected_seed_id:
             return []
-        records.append(payload)
+        records.append(normalize_submission(payload, index))
     return records
+
+
+def normalize_submission(submission: dict, index: int) -> dict:
+    normalized = dict(submission)
+    achievement_text = app.clean_text(normalized.get("achievement_text"))
+    normalized.update(
+        {
+            "name": TEAM_NAMES[index - 1],
+            "client_source": DISPLAY_SOURCE,
+            "achievement_text": achievement_text.removeprefix("【AI演示数据】"),
+            "maturity": app.clean_text(normalized.get("maturity")).removeprefix("演示设定：")
+            or "中试验证阶段",
+            "demo_seed_id": demo_id(index, "record"),
+        }
+    )
+    return normalized
 
 
 def generation_messages() -> list[dict]:
@@ -118,19 +173,22 @@ def validate_generated(payload: dict) -> list[dict]:
         if len(title) < 8 or len(achievement_text) < 100:
             raise ValueError(f"第 {index} 条内容过短")
         validated.append(
-            {
-                "name": f"AI演示课题组 {index:02d}",
+            normalize_submission(
+                {
+                "name": TEAM_NAMES[index - 1],
                 "company": institution,
                 "title": title,
-                "achievement_text": f"【AI演示数据】{achievement_text}",
+                "achievement_text": achievement_text,
                 "summary": achievement_text,
                 "application_scene": topic,
                 "region": "江苏省 / 南通市",
-                "maturity": "演示设定：中试验证阶段",
+                "maturity": "中试验证阶段",
                 "cooperation": "技术许可、联合开发或场景验证",
-                "client_source": DEMO_SOURCE,
+                "client_source": DISPLAY_SOURCE,
                 "demo_seed_id": demo_id(index, "record"),
-            }
+                },
+                index,
+            )
         )
     return validated
 
@@ -221,7 +279,7 @@ def seed(*, regenerate: bool = False, no_ai_rerank: bool = False) -> dict:
             {
                 "demo_data": True,
                 "demo_seed_id": submission["demo_seed_id"],
-                "demo_source": DEMO_SOURCE,
+                "demo_source": INTERNAL_DEMO_SOURCE,
                 "structured_tags": app.compact_tag_payload(tag_profile),
                 "capability_profile": app.normalize_technical_profile(
                     ai_meta.get("capability_profile") or capability_profile
@@ -230,7 +288,7 @@ def seed(*, regenerate: bool = False, no_ai_rerank: bool = False) -> dict:
                 "demo_threshold_fill_count": fill_count,
             }
         )
-        ai_meta["message"] = "AI演示数据；" + app.clean_text(ai_meta.get("message"))
+        ai_meta["message"] = app.clean_text(ai_meta.get("message")).removeprefix("AI演示数据；")
         app.save_submission(
             {"submission_id": submission_id, "created_at": created_at, "submission": submission}
         )
@@ -246,13 +304,14 @@ def seed(*, regenerate: bool = False, no_ai_rerank: bool = False) -> dict:
         )
         if selected:
             status = FOLLOWUP_STATUSES[(index - 1) % len(FOLLOWUP_STATUSES)]
+            contact_note, project_progress = FOLLOWUP_COPY[status]
             app.save_match_followup(
                 store,
                 match_id,
                 app.clean_text(selected[0].get("demand_id")),
                 status,
-                "AI演示数据：用于验证后台跟进状态展示，不代表真实联系。",
-                f"演示流程阶段：{status}；记录可在后台正常编辑。",
+                contact_note,
+                project_progress,
             )
             followup_count += 1
         if ai_meta.get("used_ai"):
@@ -273,6 +332,74 @@ def seed(*, regenerate: bool = False, no_ai_rerank: bool = False) -> dict:
         "ai_reranked_records": ai_used_count,
         "local_fallback_records": local_fallback_count,
         "below_threshold_demo_fills": low_score_fill_count,
+    }
+
+
+def normalize_existing_presentation() -> dict:
+    app.init_database()
+    updated_submissions = 0
+    updated_matches = 0
+    updated_followups = 0
+    with app.db_connect() as conn:
+        for index in range(1, len(DEMO_SPECS) + 1):
+            submission_id = demo_id(index, "submission")
+            match_id = demo_id(index, "match")
+            submission_row = app.db_execute(
+                conn,
+                "SELECT submission_json FROM submissions WHERE submission_id = ?",
+                (submission_id,),
+            ).fetchone()
+            match_row = app.db_execute(
+                conn,
+                "SELECT submission_json, ai_meta_json FROM matches WHERE match_id = ?",
+                (match_id,),
+            ).fetchone()
+            if submission_row is None or match_row is None:
+                continue
+            submission = app.decode_json_field(dict(submission_row).get("submission_json"), {})
+            match_submission = app.decode_json_field(dict(match_row).get("submission_json"), {})
+            ai_meta = app.decode_json_field(dict(match_row).get("ai_meta_json"), {})
+            if not isinstance(submission, dict) or submission.get("demo_seed_id") != demo_id(index, "record"):
+                raise RuntimeError(f"记录 {submission_id} 缺少内部测试标识，拒绝修改")
+            submission = normalize_submission(submission, index)
+            match_submission = normalize_submission(match_submission if isinstance(match_submission, dict) else submission, index)
+            ai_meta = dict(ai_meta) if isinstance(ai_meta, dict) else {}
+            ai_meta["message"] = app.clean_text(ai_meta.get("message")).removeprefix("AI演示数据；")
+            app.db_execute(
+                conn,
+                "UPDATE submissions SET submission_json = ? WHERE submission_id = ?",
+                (app.json_dumps(submission), submission_id),
+            )
+            app.db_execute(
+                conn,
+                "UPDATE matches SET submission_json = ?, ai_meta_json = ? WHERE match_id = ?",
+                (app.json_dumps(match_submission), app.json_dumps(ai_meta), match_id),
+            )
+            updated_submissions += 1
+            updated_matches += 1
+            followup_rows = app.db_execute(
+                conn,
+                "SELECT demand_id, status FROM match_followups WHERE match_id = ?",
+                (match_id,),
+            ).fetchall()
+            for followup_row in followup_rows:
+                followup_item = dict(followup_row)
+                demand_id = app.clean_text(followup_item.get("demand_id"))
+                status = app.clean_text(followup_item.get("status"))
+                contact_note, project_progress = FOLLOWUP_COPY.get(
+                    status,
+                    ("已记录当前沟通情况，等待下一步确认。", "根据双方反馈继续更新项目进度。"),
+                )
+                result = app.db_execute(
+                    conn,
+                    "UPDATE match_followups SET contact_note = ?, project_progress = ?, updated_at = ? WHERE match_id = ? AND demand_id = ?",
+                    (contact_note, project_progress, app.now_iso(), match_id, demand_id),
+                )
+                updated_followups += max(0, int(result.rowcount or 0))
+    return {
+        "updated_submissions": updated_submissions,
+        "updated_matches": updated_matches,
+        "updated_followups": updated_followups,
     }
 
 
@@ -304,13 +431,16 @@ def delete_demo_data() -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description="生成或安全删除 20 组南通高校科研院所 AI 演示匹配数据")
     parser.add_argument("--delete", action="store_true", help="仅删除本脚本固定 ID 创建的演示数据")
+    parser.add_argument("--normalize-presentation", action="store_true", help="去除后台可见的 AI 演示提示并改为正常业务表述")
     parser.add_argument("--regenerate", action="store_true", help="重新调用 AI 生成成果文本")
     parser.add_argument("--no-ai-rerank", action="store_true", help="仅用于离线调试：跳过 AI 精排")
     args = parser.parse_args()
-    result = delete_demo_data() if args.delete else seed(
-        regenerate=args.regenerate,
-        no_ai_rerank=args.no_ai_rerank,
-    )
+    if args.delete:
+        result = delete_demo_data()
+    elif args.normalize_presentation:
+        result = normalize_existing_presentation()
+    else:
+        result = seed(regenerate=args.regenerate, no_ai_rerank=args.no_ai_rerank)
     print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
     return 0
 

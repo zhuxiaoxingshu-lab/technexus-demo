@@ -10,6 +10,11 @@ const state = {
   matchFollowupStatuses: [],
   publicDemandOffset: 0,
   publicDemandTotal: 0,
+  managerAuthenticated: false,
+  manager: null,
+  managerCsrfToken: "",
+  managerProjects: [],
+  managerSettlements: [],
   adminAuthenticated: false,
   adminUsername: "",
   adminCsrfToken: "",
@@ -21,6 +26,16 @@ const state = {
   matchFilters: {
     keyword: "",
   },
+  currentAdminManager: null,
+  currentAdminManagerProject: null,
+  managerVerificationStatuses: [],
+  managerProjectStatuses: [],
+  managerUnlockStatuses: [],
+  managerFeeStatuses: [],
+  settlementTypes: [],
+  settlementStatuses: [],
+  adminManagers: [],
+  adminManagerProjects: [],
 };
 
 const titleMap = {
@@ -30,6 +45,7 @@ const titleMap = {
   results: ["匹配结果", "展示匹配分数、具体技术需求和合作建议，不展示需求方身份及联系方式。"],
   intent: ["申请对接", "选中需求后填写联系方式并确认协议，进入平台人工审核。"],
   progress: ["进度查询", "输入查询码，查看技术撮合对接进度。"],
+  manager: ["技术经理人中心", "上传企业技术需求，选择平台委托或自主对接，并跟踪项目与结算。"],
   admin: ["后台管理", "管理需求库、匹配记录、合作意向和协议确认。"],
 };
 
@@ -86,6 +102,9 @@ function showView(id) {
     }
     loadAdmin();
   }
+  if (id === "manager") {
+    loadManager();
+  }
   if (id === "demands" && !$("#public-demand-list").dataset.loaded) {
     loadPublicDemands(true);
   }
@@ -97,9 +116,15 @@ async function api(path, options = {}) {
   try {
     const method = String(options.method || "GET").toUpperCase();
     const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-    const csrfProtectedPaths = new Set(["/api/admin/logout", "/api/intents/status", "/api/matches/followup"]);
-    if (method !== "GET" && state.adminCsrfToken && csrfProtectedPaths.has(path)) {
+    const legacyAdminPaths = new Set(["/api/intents/status", "/api/matches/followup"]);
+    const isAdminWrite = path.startsWith("/api/admin/") && path !== "/api/admin/login";
+    const isManagerWrite =
+      path.startsWith("/api/manager/") && !["/api/manager/login", "/api/manager/register"].includes(path);
+    if (method !== "GET" && state.adminCsrfToken && (isAdminWrite || legacyAdminPaths.has(path))) {
       headers["X-CSRF-Token"] = state.adminCsrfToken;
+    }
+    if (method !== "GET" && state.managerCsrfToken && isManagerWrite) {
+      headers["X-CSRF-Token"] = state.managerCsrfToken;
     }
     response = await fetch(path, {
       ...options,
@@ -791,6 +816,494 @@ async function loadPublicDemands(reset = false) {
   }
 }
 
+function setManagerView(authenticated, manager = null) {
+  state.managerAuthenticated = Boolean(authenticated);
+  state.manager = manager || null;
+  $("#manager-auth-panel").hidden = Boolean(authenticated);
+  $("#manager-content").hidden = !authenticated;
+  if (authenticated && manager) {
+    $("#manager-display-name").textContent = `${manager.real_name || "-"} · ${manager.organization || "-"}`;
+    $("#manager-verification-badge").textContent = manager.verification_status || "待认证";
+    $("#manager-verification-badge").className = `status-pill manager-status-${
+      manager.verification_status === "已认证" ? "approved" : manager.verification_status === "认证未通过" ? "rejected" : "pending"
+    }`;
+  }
+}
+
+function renderManagerWorkbench(data) {
+  const manager = data.manager || state.manager || {};
+  const stats = data.stats || {};
+  state.manager = manager;
+  state.managerProjects = data.projects || [];
+  state.managerSettlements = data.settlements || [];
+  setManagerView(true, manager);
+  $("#manager-project-count").textContent = stats.project_count ?? 0;
+  $("#manager-active-count").textContent = stats.active_count ?? 0;
+  $("#manager-unlocked-count").textContent = stats.unlocked_count ?? 0;
+  $("#manager-settled-share").textContent = stats.settled_share || "0.00";
+
+  const verified = manager.verification_status === "已认证";
+  const notice = $("#manager-verification-notice");
+  notice.className = `manager-notice ${verified ? "approved" : manager.verification_status === "认证未通过" ? "rejected" : "pending"}`;
+  notice.innerHTML = verified
+    ? `<i data-lucide="badge-check"></i><div><strong>认证已通过</strong><span>你可以上传企业需求，并在工作台跟踪审核、解锁与结算。</span></div>`
+    : manager.verification_status === "认证未通过"
+      ? `<i data-lucide="shield-alert"></i><div><strong>认证资料需要补充</strong><span>${escapeHtml(manager.verification_note || "请联系平台补充或更正认证信息。")}</span></div>`
+      : `<i data-lucide="clock-3"></i><div><strong>认证审核中</strong><span>平台审核通过后即可提交企业技术需求；当前可先查看工作台。</span></div>`;
+  $all("input, textarea, button", $("#manager-project-form")).forEach((field) => {
+    field.disabled = !verified;
+  });
+  renderManagerProjects(state.managerProjects);
+  renderManagerSettlements(state.managerSettlements);
+  refreshIcons();
+}
+
+function renderManagerProjects(items) {
+  const list = $("#manager-project-list");
+  if (!items.length) {
+    list.innerHTML = `<div class="empty-state">暂无项目。认证通过后，可在上方粘贴企业技术需求并选择服务方式。</div>`;
+    return;
+  }
+  list.innerHTML = items
+    .map((item) => {
+      const contact = item.counterpart_contact || {};
+      const unlocked = Boolean(contact.unlocked);
+      const hasCounterpart = Boolean(item.has_counterpart_contact);
+      const canReportSelfService =
+        item.service_mode === "self_service" &&
+        item.status !== "待平台审核" &&
+        !["已成交", "已关闭", "审核未通过"].includes(item.status);
+      return `
+        <article class="manager-project-card">
+          <div class="manager-project-head">
+            <div><span class="project-no">${escapeHtml(item.project_no || "-")}</span><strong>${escapeHtml(item.service_mode_label || "-")}</strong></div>
+            <span class="status-pill">${escapeHtml(item.status || "-")}</span>
+          </div>
+          <p class="manager-demand-summary">${escapeHtml(item.enterprise_demand_text || "-")}</p>
+          <div class="project-stage-grid">
+            <div><span>平台审核</span><strong>${escapeHtml(item.audit_note || (item.status === "待平台审核" ? "等待审核" : "已处理"))}</strong></div>
+            <div><span>匹配 / 对接进展</span><strong>${escapeHtml(item.match_summary || "暂无进展记录")}</strong></div>
+            <div><span>服务费</span><strong>${escapeHtml(item.service_fee_status || "-")}</strong></div>
+            <div><span>${hasCounterpart ? "联系方式" : "对接方"}</span><strong>${escapeHtml(hasCounterpart ? item.contact_unlock_status || "未解锁" : "未登记")}</strong></div>
+          </div>
+          ${hasCounterpart ? `<div class="counterpart-card ${unlocked ? "unlocked" : "locked"}">
+            <i data-lucide="${unlocked ? "contact-round" : "lock-keyhole"}"></i>
+            <div>
+              <strong>${escapeHtml(contact.organization || "对接方信息受保护")}<small>${escapeHtml(item.counterpart_contact_source_label || "")}</small></strong>
+              <span>${escapeHtml(contact.name || "审核通过后可见")} · ${escapeHtml(contact.phone || "•••••••••••")}${contact.email ? ` · ${escapeHtml(contact.email)}` : ""}</span>
+            </div>
+          </div>` : ""}
+          ${canReportSelfService ? `<details class="self-service-progress-panel">
+            <summary><span><i data-lucide="clipboard-pen-line"></i>登记自主对接进展</span><small>已找到技术资源后填写</small></summary>
+            <form class="self-service-progress-form" data-project-id="${escapeHtml(item.project_id)}">
+              <label>进展状态<select name="status">
+                <option value="已建立技术对接" ${item.status === "已建立技术对接" ? "selected" : ""}>已建立技术对接</option>
+                <option value="对接中" ${item.status === "对接中" ? "selected" : ""}>对接中</option>
+              </select></label>
+              <label>技术对接方单位<input name="organization" value="${escapeHtml(contact.organization || "")}" placeholder="高校、科研院所或技术团队" required /></label>
+              <label>联系人<input name="name" value="${escapeHtml(contact.name || "")}" placeholder="真实联系人姓名" required /></label>
+              <label>手机号<input name="phone" value="${escapeHtml(contact.phone || "")}" inputmode="tel" placeholder="手机号或座机" /></label>
+              <label>邮箱<input name="email" value="${escapeHtml(contact.email || "")}" type="email" placeholder="手机号和邮箱至少填一项" /></label>
+              <label class="full">本阶段进展<textarea name="progress_summary" minlength="10" placeholder="例如：已与技术团队完成首次电话沟通，双方确认下周交换技术指标和样品测试条件。" required>${escapeHtml(item.match_summary || "")}</textarea></label>
+              <p class="self-service-fee-note full">登记进入实质对接后，平台服务费状态转为“待确认”，具体金额仍由双方按约定人工确认。</p>
+              <button class="btn primary full" type="submit"><i data-lucide="save"></i>保存自主对接进展</button>
+            </form>
+          </details>` : ""}
+          <footer><span>提交于 ${escapeHtml(item.created_at || "-")}</span><span>更新于 ${escapeHtml(item.updated_at || "-")}</span></footer>
+        </article>`;
+    })
+    .join("");
+  $all(".self-service-progress-form", list).forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveManagerSelfServiceProgress(form, $("button[type='submit']", form));
+    });
+  });
+  refreshIcons();
+}
+
+function renderManagerSettlements(items) {
+  const table = $("#manager-settlement-table");
+  if (!items.length) {
+    table.innerHTML = `<tr><td colspan="7">暂无结算记录</td></tr>`;
+    return;
+  }
+  table.innerHTML = items
+    .map((item) => {
+      const project = state.managerProjects.find((candidate) => candidate.project_id === item.project_id) || {};
+      return `<tr>
+        <td>${escapeHtml(item.updated_at || "-")}</td>
+        <td>${escapeHtml(project.project_no || "-")}</td>
+        <td>${escapeHtml(item.settlement_type || "-")}</td>
+        <td>¥${escapeHtml(item.deal_amount || "0.00")}</td>
+        <td>¥${escapeHtml(item.platform_fee || "0.00")}</td>
+        <td>¥${escapeHtml(item.manager_share || "0.00")}</td>
+        <td><span class="status-pill">${escapeHtml(item.status || "-")}</span></td>
+      </tr>`;
+    })
+    .join("");
+}
+
+async function loadManager() {
+  try {
+    const session = await api("/api/manager/session");
+    state.managerCsrfToken = session.csrf_token || "";
+    if (!session.authenticated) {
+      setManagerView(false, null);
+      return;
+    }
+    const workbench = await api("/api/manager/workbench");
+    renderManagerWorkbench(workbench);
+  } catch (error) {
+    if (error.status === 401) {
+      state.managerCsrfToken = "";
+      setManagerView(false, null);
+      return;
+    }
+    toast(error.message);
+  }
+}
+
+async function loginManager(button) {
+  const payload = formDataToObject($("#manager-login-form"));
+  setButtonLoading(button, true, "正在登录");
+  try {
+    const response = await api("/api/manager/login", { method: "POST", body: JSON.stringify(payload) });
+    state.managerCsrfToken = response.csrf_token || "";
+    $("#manager-login-form").reset();
+    toast("登录成功");
+    await loadManager();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function registerManager(button) {
+  const payload = formDataToObject($("#manager-register-form"));
+  if (payload.password !== payload.password_confirm) {
+    toast("两次输入的密码不一致");
+    return;
+  }
+  delete payload.password_confirm;
+  setButtonLoading(button, true, "正在提交");
+  try {
+    const response = await api("/api/manager/register", { method: "POST", body: JSON.stringify(payload) });
+    state.managerCsrfToken = response.csrf_token || "";
+    $("#manager-register-form").reset();
+    toast("认证申请已提交");
+    await loadManager();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function logoutManager() {
+  try {
+    await api("/api/manager/logout", { method: "POST", body: JSON.stringify({}) });
+  } catch {
+    // 会话失效时也应返回登录界面。
+  }
+  state.managerCsrfToken = "";
+  state.managerProjects = [];
+  state.managerSettlements = [];
+  setManagerView(false, null);
+  toast("已退出经理人中心");
+}
+
+async function submitManagerProject(button) {
+  const payload = formDataToObject($("#manager-project-form"));
+  if (String(payload.enterprise_demand_text || "").trim().length < 30) {
+    toast("请至少填写 30 个字的企业技术需求");
+    return;
+  }
+  setButtonLoading(button, true, "正在提交");
+  try {
+    const response = await api("/api/manager/projects", { method: "POST", body: JSON.stringify(payload) });
+    $("#manager-project-form").reset();
+    const defaultMode = $('input[name="service_mode"][value="entrusted"]');
+    if (defaultMode) defaultMode.checked = true;
+    syncServiceModeCards();
+    renderManagerWorkbench(response);
+    toast(`企业需求 ${response.project?.project_no || ""} 已提交`);
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function saveManagerSelfServiceProgress(form, button) {
+  const values = formDataToObject(form);
+  const payload = {
+    project_id: form.dataset.projectId,
+    status: values.status,
+    progress_summary: values.progress_summary,
+    counterpart_contact: {
+      organization: values.organization,
+      name: values.name,
+      phone: values.phone,
+      email: values.email,
+    },
+  };
+  setButtonLoading(button, true, "正在保存");
+  try {
+    const response = await api("/api/manager/projects/self-service-progress", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    renderManagerWorkbench(response);
+    toast("自主对接进展已保存，平台后台已同步");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function syncServiceModeCards() {
+  $all(".service-mode-card").forEach((card) => {
+    const input = $("input", card);
+    card.classList.toggle("active", Boolean(input?.checked));
+  });
+}
+
+function optionMarkup(values, current) {
+  return (values || [])
+    .map((value) => `<option value="${escapeHtml(value)}" ${value === current ? "selected" : ""}>${escapeHtml(value)}</option>`)
+    .join("");
+}
+
+function renderAdminManagers(items) {
+  const table = $("#admin-manager-table");
+  if (!items.length) {
+    table.innerHTML = `<tr><td colspan="7">暂无认证申请</td></tr>`;
+    return;
+  }
+  table.innerHTML = items
+    .map(
+      (item) => `<tr>
+        <td>${escapeHtml(item.created_at || "-")}</td>
+        <td><strong>${escapeHtml(item.real_name || "-")}</strong><p class="table-muted">${escapeHtml(item.phone || "-")}</p></td>
+        <td>${escapeHtml(item.organization || "-")}</td>
+        <td>${escapeHtml(item.credential_no || "-")}</td>
+        <td>${Number(item.project_count || 0)}</td>
+        <td><span class="status-pill">${escapeHtml(item.verification_status || "-")}</span></td>
+        <td><button class="btn" data-admin-manager="${escapeHtml(item.manager_id)}"><i data-lucide="badge-check"></i>审核</button></td>
+      </tr>`,
+    )
+    .join("");
+  $all("[data-admin-manager]").forEach((button) => {
+    button.addEventListener("click", () => showAdminManager(button.dataset.adminManager));
+  });
+  refreshIcons();
+}
+
+function showAdminManager(managerId) {
+  const item = state.adminManagers.find((manager) => manager.manager_id === managerId);
+  if (!item) return;
+  state.currentAdminManager = item;
+  const box = $("#admin-manager-detail");
+  box.className = "manager-review-form";
+  box.innerHTML = `
+    <div class="detail-section">
+      ${detailRow("姓名 / 手机", `${item.real_name || "-"} · ${item.phone || "-"}`)}
+      ${detailRow("所在机构", item.organization || "-")}
+      ${detailRow("证书 / 说明", item.credential_no || "-")}
+    </div>
+    <label>认证状态<select id="admin-manager-status">${optionMarkup(state.managerVerificationStatuses, item.verification_status)}</select></label>
+    <label>审核意见<textarea id="admin-manager-note" placeholder="认证通过依据，或需要补充的资料">${escapeHtml(item.verification_note || "")}</textarea></label>
+    <button class="btn primary" id="admin-manager-save"><i data-lucide="save"></i>保存认证结果</button>`;
+  $("#admin-manager-save").addEventListener("click", saveAdminManagerVerification);
+  refreshIcons();
+}
+
+async function saveAdminManagerVerification() {
+  if (!state.currentAdminManager) return;
+  const button = $("#admin-manager-save");
+  setButtonLoading(button, true, "正在保存");
+  try {
+    const response = await api("/api/admin/managers/verify", {
+      method: "POST",
+      body: JSON.stringify({
+        manager_id: state.currentAdminManager.manager_id,
+        verification_status: $("#admin-manager-status").value,
+        verification_note: $("#admin-manager-note").value.trim(),
+      }),
+    });
+    state.adminManagers = response.items || [];
+    renderAdminManagers(state.adminManagers);
+    state.currentAdminManager = response.manager;
+    showAdminManager(response.manager.manager_id);
+    toast("认证结果已保存");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function renderAdminManagerProjects(items) {
+  const table = $("#admin-manager-project-table");
+  if (!items.length) {
+    table.innerHTML = `<tr><td colspan="8">暂无经理人项目</td></tr>`;
+    return;
+  }
+  table.innerHTML = items
+    .map(
+      (item) => `<tr>
+        <td>${escapeHtml(item.created_at || "-")}<p class="table-muted">${escapeHtml(item.project_no || "-")}</p></td>
+        <td><strong>${escapeHtml(item.manager_name || "-")}</strong><p class="table-muted">${escapeHtml(item.manager_organization || "-")}</p></td>
+        <td>${escapeHtml(item.service_mode_label || "-")}</td>
+        <td class="admin-demand-cell">${escapeHtml(item.enterprise_demand_text || "-")}</td>
+        <td><span class="status-pill">${escapeHtml(item.status || "-")}</span></td>
+        <td>${escapeHtml(item.has_counterpart_contact ? item.counterpart_contact_source_label || item.contact_unlock_status || "-" : "未登记")}</td>
+        <td>${escapeHtml(item.service_fee_status || "-")}</td>
+        <td><button class="btn" data-admin-manager-project="${escapeHtml(item.project_id)}"><i data-lucide="settings-2"></i>处理</button></td>
+      </tr>`,
+    )
+    .join("");
+  $all("[data-admin-manager-project]").forEach((button) => {
+    button.addEventListener("click", () => loadAdminManagerProject(button.dataset.adminManagerProject));
+  });
+  refreshIcons();
+}
+
+async function loadAdminManagerProject(projectId) {
+  const box = $("#admin-manager-project-detail");
+  box.className = "manager-project-admin-detail empty-state";
+  box.textContent = "正在读取项目详情...";
+  try {
+    const response = await api(`/api/admin/manager-projects/detail?project_id=${encodeURIComponent(projectId)}`);
+    state.managerProjectStatuses = response.project_statuses || state.managerProjectStatuses;
+    state.managerUnlockStatuses = response.unlock_statuses || state.managerUnlockStatuses;
+    state.managerFeeStatuses = response.fee_statuses || state.managerFeeStatuses;
+    state.settlementTypes = response.settlement_types || state.settlementTypes;
+    state.settlementStatuses = response.settlement_statuses || state.settlementStatuses;
+    state.currentAdminManagerProject = response.project;
+    renderAdminManagerProjectDetail(response.project);
+  } catch (error) {
+    box.textContent = error.message;
+    toast(error.message);
+  }
+}
+
+function renderAdminManagerProjectDetail(item) {
+  const box = $("#admin-manager-project-detail");
+  const contact = item.counterpart_contact || {};
+  const settlement = (item.settlements || [])[0] || {};
+  const defaultSettlementType = item.service_mode === "entrusted" ? "平台撮合分成" : "自主对接服务费";
+  box.className = "manager-project-admin-detail";
+  box.innerHTML = `
+    <div class="manager-admin-summary">
+      <div><span>项目编号</span><strong>${escapeHtml(item.project_no || "-")}</strong></div>
+      <div><span>技术经理人</span><strong>${escapeHtml(`${item.manager_name || "-"} · ${item.manager_phone || "-"}`)}</strong></div>
+      <div><span>机构</span><strong>${escapeHtml(item.manager_organization || "-")}</strong></div>
+      <div><span>服务方式</span><strong>${escapeHtml(item.service_mode_label || "-")}</strong></div>
+      <div><span>对接方来源</span><strong>${escapeHtml(item.has_counterpart_contact ? item.counterpart_contact_source_label || "平台登记" : "未登记")}</strong></div>
+    </div>
+    <div class="detail-section"><h3>企业技术需求</h3><p class="detail-text">${escapeHtml(item.enterprise_demand_text || "-")}</p></div>
+    <div class="manager-admin-form-grid">
+      <label>项目状态<select id="manager-project-status">${optionMarkup(state.managerProjectStatuses, item.status)}</select></label>
+      <label>服务费状态<select id="manager-project-fee-status">${optionMarkup(state.managerFeeStatuses, item.service_fee_status)}</select></label>
+      <label>联系方式<select id="manager-project-unlock-status">${optionMarkup(state.managerUnlockStatuses, item.contact_unlock_status)}</select></label>
+      <label>对接方单位<input id="manager-counterpart-organization" value="${escapeHtml(contact.organization || "")}" placeholder="实际接洽的技术单位或团队" /></label>
+      <label>联系人<input id="manager-counterpart-name" value="${escapeHtml(contact.name || "")}" /></label>
+      <label>手机号<input id="manager-counterpart-phone" value="${escapeHtml(contact.phone || "")}" /></label>
+      <label>邮箱<input id="manager-counterpart-email" value="${escapeHtml(contact.email || "")}" /></label>
+      <label class="full">审核意见<textarea id="manager-project-audit-note" placeholder="对经理人可见">${escapeHtml(item.audit_note || "")}</textarea></label>
+      <label class="full">匹配 / 对接进展<textarea id="manager-project-match-summary" placeholder="记录平台寻找技术资源或经理人自主对接的当前进展">${escapeHtml(item.match_summary || "")}</textarea></label>
+    </div>
+    <button class="btn primary" id="manager-project-admin-save"><i data-lucide="save"></i>保存项目状态</button>
+    <div class="settlement-editor">
+      <div><h3>人工结算登记</h3><p>金额单位：元。P0 先由后台依据协议人工核定。</p></div>
+      <input type="hidden" id="manager-settlement-id" value="${escapeHtml(settlement.settlement_id || "")}" />
+      <div class="manager-admin-form-grid">
+        <label>结算类型<select id="manager-settlement-type">${optionMarkup(state.settlementTypes, settlement.settlement_type || defaultSettlementType)}</select></label>
+        <label>结算状态<select id="manager-settlement-status">${optionMarkup(state.settlementStatuses, settlement.status || "待确认")}</select></label>
+        <label>项目成交额<input id="manager-deal-amount" inputmode="decimal" value="${escapeHtml(settlement.deal_amount || "0.00")}" /></label>
+        <label>平台费用<input id="manager-platform-fee" inputmode="decimal" value="${escapeHtml(settlement.platform_fee || "0.00")}" /></label>
+        <label>经理人分成<input id="manager-share" inputmode="decimal" value="${escapeHtml(settlement.manager_share || "0.00")}" /></label>
+        <label class="full">结算备注<textarea id="manager-settlement-note">${escapeHtml(settlement.note || "")}</textarea></label>
+      </div>
+      <button class="btn warning" id="manager-settlement-save"><i data-lucide="badge-dollar-sign"></i>保存结算记录</button>
+    </div>
+    <div class="project-log-list">
+      <h3>操作记录</h3>
+      ${(item.logs || []).map((log) => `<div><span>${escapeHtml(log.created_at || "-")}</span><strong>${escapeHtml(log.action || "-")}</strong><p>${escapeHtml(log.note || "")}</p></div>`).join("") || '<p class="table-muted">暂无记录</p>'}
+    </div>`;
+  $("#manager-project-admin-save").addEventListener("click", saveAdminManagerProject);
+  $("#manager-settlement-save").addEventListener("click", saveAdminManagerSettlement);
+  refreshIcons();
+}
+
+async function saveAdminManagerProject() {
+  const item = state.currentAdminManagerProject;
+  if (!item) return;
+  const button = $("#manager-project-admin-save");
+  setButtonLoading(button, true, "正在保存");
+  try {
+    const response = await api("/api/admin/manager-projects/update", {
+      method: "POST",
+      body: JSON.stringify({
+        project_id: item.project_id,
+        status: $("#manager-project-status").value,
+        service_fee_status: $("#manager-project-fee-status").value,
+        contact_unlock_status: $("#manager-project-unlock-status").value,
+        audit_note: $("#manager-project-audit-note").value.trim(),
+        match_summary: $("#manager-project-match-summary").value.trim(),
+        counterpart_contact: {
+          organization: $("#manager-counterpart-organization").value.trim(),
+          name: $("#manager-counterpart-name").value.trim(),
+          phone: $("#manager-counterpart-phone").value.trim(),
+          email: $("#manager-counterpart-email").value.trim(),
+        },
+      }),
+    });
+    state.adminManagerProjects = response.items || [];
+    renderAdminManagerProjects(state.adminManagerProjects);
+    state.currentAdminManagerProject = response.project;
+    renderAdminManagerProjectDetail(response.project);
+    toast("经理人项目已更新");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+async function saveAdminManagerSettlement() {
+  const item = state.currentAdminManagerProject;
+  if (!item) return;
+  const button = $("#manager-settlement-save");
+  setButtonLoading(button, true, "正在保存");
+  try {
+    const response = await api("/api/admin/manager-settlements/save", {
+      method: "POST",
+      body: JSON.stringify({
+        settlement_id: $("#manager-settlement-id").value,
+        project_id: item.project_id,
+        settlement_type: $("#manager-settlement-type").value,
+        status: $("#manager-settlement-status").value,
+        deal_amount: $("#manager-deal-amount").value,
+        platform_fee: $("#manager-platform-fee").value,
+        manager_share: $("#manager-share").value,
+        note: $("#manager-settlement-note").value.trim(),
+      }),
+    });
+    state.currentAdminManagerProject = response.project;
+    renderAdminManagerProjectDetail(response.project);
+    toast("结算记录已保存");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
 async function loadAdmin() {
   try {
     const session = await api("/api/admin/session");
@@ -802,10 +1315,12 @@ async function loadAdmin() {
     }
     const intentQuery = intentFilterQuery();
     const matchQuery = matchFilterQuery();
-    const [stats, intents, matches] = await Promise.all([
+    const [stats, intents, matches, managers, managerProjects] = await Promise.all([
       api("/api/stats"),
       api(`/api/intents${intentQuery}`),
       api(`/api/matches${matchQuery}`),
+      api("/api/admin/managers"),
+      api("/api/admin/manager-projects"),
     ]);
     updateStats(stats);
     state.adminStatuses = intents.statuses || [];
@@ -813,6 +1328,18 @@ async function loadAdmin() {
     renderIntentTable(intents.items || []);
     renderMatchFilter();
     renderMatchTable(matches.items || []);
+    state.adminManagers = managers.items || [];
+    state.managerVerificationStatuses = managers.verification_statuses || [];
+    state.adminManagerProjects = managerProjects.items || [];
+    state.managerProjectStatuses = managerProjects.project_statuses || [];
+    state.managerUnlockStatuses = managerProjects.unlock_statuses || [];
+    state.managerFeeStatuses = managerProjects.fee_statuses || [];
+    state.settlementTypes = managerProjects.settlement_types || [];
+    state.settlementStatuses = managerProjects.settlement_statuses || [];
+    $("#admin-manager-count").textContent = state.adminManagers.length.toLocaleString("zh-CN");
+    $("#admin-manager-project-count").textContent = state.adminManagerProjects.length.toLocaleString("zh-CN");
+    renderAdminManagers(state.adminManagers);
+    renderAdminManagerProjects(state.adminManagerProjects);
     if (state.currentMatch?.match_id) {
       await loadMatchDetail(state.currentMatch.match_id);
     }
@@ -899,6 +1426,8 @@ function resetAdminData() {
   $("#admin-match-count").textContent = "-";
   $("#admin-intent-count").textContent = "-";
   $("#admin-ai-mode").textContent = "-";
+  $("#admin-manager-count").textContent = "-";
+  $("#admin-manager-project-count").textContent = "-";
   state.currentMatch = null;
   $("#match-table").innerHTML = `<tr><td colspan="7">登录后显示匹配记录</td></tr>`;
   $("#match-detail").className = "match-detail empty-state";
@@ -906,6 +1435,16 @@ function resetAdminData() {
   $("#intent-table").innerHTML = `<tr><td colspan="8">登录后显示合作意向</td></tr>`;
   $("#intent-detail").className = "intent-detail empty-state";
   $("#intent-detail").textContent = "登录后查看线索详情。";
+  state.adminManagers = [];
+  state.adminManagerProjects = [];
+  state.currentAdminManager = null;
+  state.currentAdminManagerProject = null;
+  $("#admin-manager-table").innerHTML = `<tr><td colspan="7">登录后显示认证申请</td></tr>`;
+  $("#admin-manager-project-table").innerHTML = `<tr><td colspan="8">登录后显示经理人项目</td></tr>`;
+  $("#admin-manager-detail").className = "empty-state";
+  $("#admin-manager-detail").textContent = "请选择技术经理人申请。";
+  $("#admin-manager-project-detail").className = "manager-project-admin-detail empty-state";
+  $("#admin-manager-project-detail").textContent = "请选择一个经理人项目进行审核与结算。";
   $("#demand-preview").dataset.loaded = "";
   $("#demand-preview").innerHTML = "";
 }
@@ -954,6 +1493,10 @@ async function logoutAdmin() {
   $("#intent-table").innerHTML = `<tr><td colspan="8">请先登录后台</td></tr>`;
   $("#intent-detail").className = "intent-detail empty-state";
   $("#intent-detail").textContent = "请选择左侧线索查看详情。";
+  state.adminManagers = [];
+  state.adminManagerProjects = [];
+  $("#admin-manager-table").innerHTML = `<tr><td colspan="7">请先登录后台</td></tr>`;
+  $("#admin-manager-project-table").innerHTML = `<tr><td colspan="8">请先登录后台</td></tr>`;
   toast("已退出后台");
 }
 
@@ -1452,11 +1995,28 @@ function bindEvents() {
   });
   $("#admin-refresh").addEventListener("click", loadAdmin);
   $("#match-refresh").addEventListener("click", loadAdmin);
+  $("#admin-manager-refresh").addEventListener("click", loadAdmin);
+  $("#admin-manager-project-refresh").addEventListener("click", loadAdmin);
   $("#admin-logout").addEventListener("click", logoutAdmin);
   $("#admin-login-form").addEventListener("submit", (event) => {
     event.preventDefault();
     loginAdmin($("#admin-login-submit"));
   });
+  $("#manager-login-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    loginManager($("#manager-login-submit"));
+  });
+  $("#manager-register-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    registerManager($("#manager-register-submit"));
+  });
+  $("#manager-project-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitManagerProject($("#manager-project-submit"));
+  });
+  $("#manager-logout").addEventListener("click", logoutManager);
+  $("#manager-refresh").addEventListener("click", loadManager);
+  $all('input[name="service_mode"]').forEach((input) => input.addEventListener("change", syncServiceModeCards));
   $all("[data-match-mode]").forEach((button) => {
     button.addEventListener("click", () => setMatchMode(button.dataset.matchMode));
   });
@@ -1499,5 +2059,7 @@ document.addEventListener("DOMContentLoaded", () => {
   refreshIcons();
   if (window.location.pathname === "/admin") {
     showView("admin");
+  } else if (window.location.pathname === "/manager") {
+    showView("manager");
   }
 });

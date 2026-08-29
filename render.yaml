@@ -26,6 +26,8 @@ services:
         sync: false
       - key: TECHNEXUS_ADMIN_PASSWORD
         sync: false
+      - key: TECHNEXUS_TRUST_PROXY_HEADERS
+        value: "1"
   - type: web
     name: technexus-web
     runtime: node

@@ -19,6 +19,7 @@ import uuid
 import webbrowser
 from collections import Counter
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -30,16 +31,18 @@ BASE_DIR = APP_DIR.parent
 STATIC_DIR = APP_DIR / "static"
 DATA_DIR = BASE_DIR / "technexus_data"
 DEMANDS_FILE = BASE_DIR / "jstec_demands.checkpoint.jsonl"
-AI_CONFIG_FILE = BASE_DIR / "ai_config.json"
-ADMIN_CONFIG_FILE = BASE_DIR / "admin_config.json"
-DB_FILE = DATA_DIR / "technexus.db"
+AI_CONFIG_FILE = Path(os.getenv("TECHNEXUS_AI_CONFIG_FILE") or BASE_DIR / "ai_config.json")
+ADMIN_CONFIG_FILE = Path(os.getenv("TECHNEXUS_ADMIN_CONFIG_FILE") or BASE_DIR / "admin_config.json")
+DB_FILE = Path(os.getenv("TECHNEXUS_DB_FILE") or DATA_DIR / "technexus.db")
 DATABASE_URL = os.getenv("TECHNEXUS_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
 DEMAND_ANALYSIS_VERSION = "demand-profile-v1"
 SESSION_COOKIE = "technexus_admin_session"
+MANAGER_SESSION_COOKIE = "technexus_manager_session"
 SESSION_SECONDS = 8 * 60 * 60
 MAX_REQUEST_BODY_BYTES = max(32 * 1024, min(1024 * 1024, int(os.getenv("TECHNEXUS_MAX_REQUEST_BYTES") or 128 * 1024)))
 AI_REQUEST_LIMIT = max(2, int(os.getenv("TECHNEXUS_AI_RATE_LIMIT") or 12))
 AI_REQUEST_WINDOW_SECONDS = max(60, int(os.getenv("TECHNEXUS_AI_RATE_WINDOW") or 10 * 60))
+TRUST_PROXY_HEADERS = os.getenv("TECHNEXUS_TRUST_PROXY_HEADERS") == "1"
 AGREEMENT_VERSION = "TechNexus-2026-06-01-v2"
 PUBLIC_RESPONSE_PROMISE = "平台将在 3 个工作日内完成初步审核或联系。"
 PROGRESS_STEPS = [
@@ -74,6 +77,30 @@ MATCH_FOLLOWUP_STATUSES = [
     "暂停跟进",
     "不再跟进",
 ]
+MANAGER_VERIFICATION_STATUSES = ["待认证", "已认证", "认证未通过"]
+MANAGER_SERVICE_MODES = {
+    "entrusted": "委托平台匹配",
+    "self_service": "自主对接",
+}
+MANAGER_PROJECT_STATUSES = [
+    "待平台审核",
+    "已受理",
+    "匹配中",
+    "已建立技术对接",
+    "对接中",
+    "已成交",
+    "已关闭",
+    "审核未通过",
+]
+MANAGER_SELF_SERVICE_PROGRESS_STATUSES = ["已建立技术对接", "对接中"]
+CONTACT_UNLOCK_STATUSES = ["未解锁", "已解锁"]
+SERVICE_FEE_STATUSES = ["免费阶段", "待确认", "待支付", "已支付", "已减免", "不适用"]
+SETTLEMENT_TYPES = ["平台撮合分成", "自主对接服务费"]
+SETTLEMENT_STATUSES = ["待确认", "待结算", "已结算", "已取消"]
+COUNTERPART_CONTACT_SOURCE_LABELS = {
+    "platform_recorded": "平台登记",
+    "manager_self_reported": "经理人自主登记",
+}
 
 CONTACT_FIELDS = {"联系方式", "详情页链接"}
 DEMAND_FIELDS = [
@@ -2661,6 +2688,16 @@ def first_value(row: object) -> object:
     return row[0]
 
 
+class ClosingSQLiteConnection(sqlite3.Connection):
+    """Commit or roll back like sqlite3.Connection, then release the file handle."""
+
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> bool:
+        try:
+            return bool(super().__exit__(exc_type, exc_value, traceback))
+        finally:
+            self.close()
+
+
 def db_connect() -> object:
     ensure_data_dir()
     if using_postgres():
@@ -2670,7 +2707,7 @@ def db_connect() -> object:
         except ImportError as exc:
             raise RuntimeError("线上数据库需要安装 psycopg：请先执行 pip install -r requirements.txt") from exc
         return psycopg.connect(DATABASE_URL, row_factory=dict_row)
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, factory=ClosingSQLiteConnection)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -3041,10 +3078,70 @@ def init_database() -> None:
         updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS technical_managers (
+        manager_id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        real_name TEXT NOT NULL,
+        phone TEXT NOT NULL UNIQUE,
+        organization TEXT NOT NULL,
+        credential_no TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        verification_status TEXT NOT NULL DEFAULT '待认证',
+        verification_note TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS manager_projects (
+        project_id TEXT PRIMARY KEY,
+        project_no TEXT NOT NULL UNIQUE,
+        manager_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        enterprise_demand_text TEXT NOT NULL,
+        demand_hash TEXT NOT NULL,
+        service_mode TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT '待平台审核',
+        audit_note TEXT DEFAULT '',
+        match_summary TEXT DEFAULT '',
+        counterpart_contact_json TEXT NOT NULL DEFAULT '{}',
+        counterpart_contact_source TEXT DEFAULT '',
+        contact_unlock_status TEXT NOT NULL DEFAULT '未解锁',
+        contact_unlocked_at TEXT DEFAULT '',
+        service_fee_status TEXT NOT NULL DEFAULT '待确认'
+    );
+
+    CREATE TABLE IF NOT EXISTS manager_project_logs (
+        log_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        note TEXT DEFAULT '',
+        operator TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS manager_settlements (
+        settlement_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        manager_id TEXT NOT NULL,
+        settlement_type TEXT NOT NULL,
+        deal_amount_cents INTEGER NOT NULL DEFAULT 0,
+        platform_fee_cents INTEGER NOT NULL DEFAULT 0,
+        manager_share_cents INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT '待确认',
+        note TEXT DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_demands_updated_at ON demands (updated_at);
     CREATE INDEX IF NOT EXISTS idx_demand_analyses_status ON demand_analyses (status);
     CREATE INDEX IF NOT EXISTS idx_demand_analyses_version ON demand_analyses (analysis_version);
     CREATE INDEX IF NOT EXISTS idx_match_followups_match_id ON match_followups (match_id);
+    CREATE INDEX IF NOT EXISTS idx_technical_managers_status ON technical_managers (verification_status);
+    CREATE INDEX IF NOT EXISTS idx_manager_projects_manager_id ON manager_projects (manager_id);
+    CREATE INDEX IF NOT EXISTS idx_manager_projects_status ON manager_projects (status);
+    CREATE INDEX IF NOT EXISTS idx_manager_project_logs_project_id ON manager_project_logs (project_id);
+    CREATE INDEX IF NOT EXISTS idx_manager_settlements_project_id ON manager_settlements (project_id);
     """
     with db_connect() as conn:
         if using_postgres():
@@ -3091,6 +3188,7 @@ def migrate_database_schema() -> None:
         add_column_if_missing(conn, "intents", "progress_json", "TEXT DEFAULT ''")
         add_column_if_missing(conn, "intents", "deal_amount", "TEXT DEFAULT ''")
         add_column_if_missing(conn, "intents", "deal_note", "TEXT DEFAULT ''")
+        add_column_if_missing(conn, "manager_projects", "counterpart_contact_source", "TEXT DEFAULT ''")
 
         rows = db_execute(
             conn,
@@ -3117,6 +3215,11 @@ def migrate_database_schema() -> None:
             if updates:
                 params.append(clean_text(item.get("intent_id")))
                 db_execute(conn, f"UPDATE intents SET {', '.join(updates)} WHERE intent_id = ?", params)
+        db_execute(
+            conn,
+            "UPDATE manager_projects SET status = ? WHERE status = ?",
+            ("已建立技术对接", "已返回候选"),
+        )
 
 
 def generate_query_code() -> str:
@@ -3368,6 +3471,541 @@ def save_intent(intent: dict) -> None:
                 clean_text(intent.get("deal_note")),
             ),
         )
+
+
+def manager_row_payload(row: object) -> dict:
+    item = dict(row)
+    item.pop("password_hash", None)
+    return item
+
+
+def get_manager(manager_id: str) -> dict:
+    with db_connect() as conn:
+        row = db_execute(
+            conn,
+            "SELECT * FROM technical_managers WHERE manager_id = ?",
+            (clean_text(manager_id),),
+        ).fetchone()
+    if row is None:
+        raise KeyError("未找到技术经理人账号")
+    return manager_row_payload(row)
+
+
+def register_manager(payload: dict) -> dict:
+    real_name = clean_text(payload.get("real_name"))
+    phone = re.sub(r"\s+", "", clean_text(payload.get("phone")))
+    organization = clean_text(payload.get("organization"))
+    credential_no = clean_text(payload.get("credential_no"))
+    password = clean_text(payload.get("password"))
+    if len(real_name) < 2 or len(real_name) > 30:
+        raise ValueError("请填写真实姓名")
+    if not re.fullmatch(r"1[3-9]\d{9}", phone):
+        raise ValueError("请输入正确的 11 位手机号")
+    if len(organization) < 2 or len(organization) > 100:
+        raise ValueError("请填写所在机构")
+    if len(credential_no) < 4 or len(credential_no) > 100:
+        raise ValueError("请填写技术经理人证书编号或认证说明")
+    if len(password) < 8 or len(password) > 128:
+        raise ValueError("密码至少需要 8 位")
+    timestamp = now_iso()
+    manager_id = uuid.uuid4().hex
+    try:
+        with db_connect() as conn:
+            db_execute(
+                conn,
+                """
+                INSERT INTO technical_managers
+                    (manager_id, created_at, updated_at, real_name, phone, organization,
+                     credential_no, password_hash, verification_status, verification_note)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    manager_id,
+                    timestamp,
+                    timestamp,
+                    real_name,
+                    phone,
+                    organization,
+                    credential_no,
+                    hash_password(password),
+                    "待认证",
+                    "",
+                ),
+            )
+    except Exception as exc:
+        if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
+            raise ValueError("该手机号已经注册，请直接登录") from exc
+        raise
+    return get_manager(manager_id)
+
+
+def authenticate_manager(phone: str, password: str) -> dict:
+    phone = re.sub(r"\s+", "", clean_text(phone))
+    with db_connect() as conn:
+        row = db_execute(conn, "SELECT * FROM technical_managers WHERE phone = ?", (phone,)).fetchone()
+    if row is None or not verify_password(clean_text(password), clean_text(dict(row).get("password_hash"))):
+        raise ValueError("手机号或密码不正确")
+    return manager_row_payload(row)
+
+
+def generate_project_no(conn: object | None = None) -> str:
+    own_conn = conn is None
+    if own_conn:
+        conn = db_connect()
+    try:
+        for _ in range(30):
+            suffix = "".join(secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(5))
+            code = f"TM-{time.strftime('%Y%m%d')}-{suffix}"
+            row = db_execute(conn, "SELECT 1 FROM manager_projects WHERE project_no = ?", (code,)).fetchone()
+            if row is None:
+                return code
+    finally:
+        if own_conn and conn is not None:
+            conn.close()
+    return f"TM-{time.strftime('%Y%m%d')}-{uuid.uuid4().hex[:5].upper()}"
+
+
+def save_manager_project_log(project_id: str, action: str, note: str, operator: str, conn: object) -> None:
+    db_execute(
+        conn,
+        """
+        INSERT INTO manager_project_logs (log_id, project_id, action, note, operator, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (uuid.uuid4().hex, clean_text(project_id), clean_text(action), clean_text(note), clean_text(operator), now_iso()),
+    )
+
+
+def masked_counterpart_contact() -> dict:
+    return {
+        "unlocked": False,
+        "name": "审核通过后可见",
+        "phone": "•••••••••••",
+        "organization": "对接方信息受保护",
+        "email": "",
+    }
+
+
+def manager_project_payload(row: object, *, admin: bool = False) -> dict:
+    item = dict(row)
+    contact = decode_json_field(item.pop("counterpart_contact_json", ""), {})
+    if not isinstance(contact, dict):
+        contact = {}
+    has_contact = any(clean_text(contact.get(key)) for key in ("name", "phone", "organization", "email"))
+    unlocked = clean_text(item.get("contact_unlock_status")) == "已解锁"
+    contact_source = clean_text(item.get("counterpart_contact_source"))
+    if admin or contact_source == "manager_self_reported" or (unlocked and has_contact):
+        item["counterpart_contact"] = {**contact, "unlocked": unlocked}
+    elif not has_contact:
+        item["counterpart_contact"] = {"unlocked": False}
+    else:
+        item["counterpart_contact"] = masked_counterpart_contact()
+    item["has_counterpart_contact"] = has_contact
+    item["counterpart_contact_source_label"] = COUNTERPART_CONTACT_SOURCE_LABELS.get(contact_source, "-")
+    item["service_mode_label"] = MANAGER_SERVICE_MODES.get(clean_text(item.get("service_mode")), "-")
+    return item
+
+
+def create_manager_project(manager_id: str, payload: dict) -> dict:
+    manager = get_manager(manager_id)
+    if manager.get("verification_status") != "已认证":
+        raise PermissionError("账号通过平台认证后才能提交企业技术需求")
+    demand_text = clean_text(payload.get("enterprise_demand_text"))
+    service_mode = clean_text(payload.get("service_mode"))
+    if len(demand_text) < 30:
+        raise ValueError("请至少填写 30 个字的企业技术需求")
+    if len(demand_text) > 30000:
+        raise ValueError("企业技术需求不能超过 30000 字")
+    if service_mode not in MANAGER_SERVICE_MODES:
+        raise ValueError("请选择委托平台匹配或自主对接")
+    normalized = re.sub(r"\s+", "", demand_text).lower()
+    demand_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    timestamp = now_iso()
+    with db_connect() as conn:
+        duplicate = db_execute(
+            conn,
+            """
+            SELECT 1 FROM manager_projects
+            WHERE manager_id = ? AND demand_hash = ? AND status NOT IN ('已关闭', '审核未通过')
+            LIMIT 1
+            """,
+            (manager_id, demand_hash),
+        ).fetchone()
+        if duplicate is not None:
+            raise ValueError("该需求已经提交，请在工作台查看进度")
+        project_id = uuid.uuid4().hex
+        project_no = generate_project_no(conn)
+        service_fee_status = "不适用" if service_mode == "entrusted" else "免费阶段"
+        db_execute(
+            conn,
+            """
+            INSERT INTO manager_projects
+                (project_id, project_no, manager_id, created_at, updated_at,
+                 enterprise_demand_text, demand_hash, service_mode, status,
+                 audit_note, match_summary, counterpart_contact_json,
+                 contact_unlock_status, contact_unlocked_at, service_fee_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                project_id,
+                project_no,
+                manager_id,
+                timestamp,
+                timestamp,
+                demand_text,
+                demand_hash,
+                service_mode,
+                "待平台审核",
+                "",
+                "",
+                "{}",
+                "未解锁",
+                "",
+                service_fee_status,
+            ),
+        )
+        save_manager_project_log(project_id, "提交企业技术需求", MANAGER_SERVICE_MODES[service_mode], manager_id, conn)
+        row = db_execute(conn, "SELECT * FROM manager_projects WHERE project_id = ?", (project_id,)).fetchone()
+    return manager_project_payload(row)
+
+
+def save_manager_self_service_progress(manager_id: str, project_id: str, payload: dict) -> dict:
+    manager = get_manager(manager_id)
+    if manager.get("verification_status") != "已认证":
+        raise PermissionError("账号通过平台认证后才能登记自主对接进展")
+    project_id = clean_text(project_id)
+    status = clean_text(payload.get("status"))
+    progress_summary = clip(clean_text(payload.get("progress_summary")), 5000)
+    if status not in MANAGER_SELF_SERVICE_PROGRESS_STATUSES:
+        raise ValueError("请选择有效的自主对接进展状态")
+    if len(progress_summary) < 10:
+        raise ValueError("请至少填写 10 个字的自主对接进展")
+    contact_payload = payload.get("counterpart_contact")
+    if not isinstance(contact_payload, dict):
+        raise ValueError("请填写自主联系的技术对接方")
+    contact = {
+        key: clip(clean_text(contact_payload.get(key)), 200)
+        for key in ("name", "phone", "organization", "email")
+    }
+    if not contact["organization"]:
+        raise ValueError("请填写自主联系的技术对接方单位")
+    if not contact["name"]:
+        raise ValueError("请填写自主联系的技术对接方联系人")
+    if not contact["phone"] and not contact["email"]:
+        raise ValueError("请至少填写对接方手机号或邮箱")
+
+    timestamp = now_iso()
+    with db_connect() as conn:
+        row = db_execute(
+            conn,
+            "SELECT * FROM manager_projects WHERE project_id = ? AND manager_id = ?",
+            (project_id, manager_id),
+        ).fetchone()
+        if row is None:
+            raise KeyError("未找到该经理人的项目")
+        current = dict(row)
+        if clean_text(current.get("service_mode")) != "self_service":
+            raise ValueError("仅自主对接项目可由经理人登记对接进展")
+        current_status = clean_text(current.get("status"))
+        if current_status == "待平台审核":
+            raise ValueError("项目通过平台审核后才能登记自主对接进展")
+        if current_status in {"已成交", "已关闭", "审核未通过"}:
+            raise ValueError("当前项目状态不能继续登记自主对接进展")
+        fee_status = clean_text(current.get("service_fee_status"))
+        if fee_status == "免费阶段":
+            fee_status = "待确认"
+        db_execute(
+            conn,
+            """
+            UPDATE manager_projects
+            SET updated_at = ?, status = ?, match_summary = ?,
+                counterpart_contact_json = ?, counterpart_contact_source = ?,
+                contact_unlock_status = ?, contact_unlocked_at = ?, service_fee_status = ?
+            WHERE project_id = ? AND manager_id = ?
+            """,
+            (
+                timestamp,
+                status,
+                progress_summary,
+                json_dumps(contact),
+                "manager_self_reported",
+                "已解锁",
+                timestamp,
+                fee_status,
+                project_id,
+                manager_id,
+            ),
+        )
+        save_manager_project_log(
+            project_id,
+            "经理人登记自主对接进展",
+            f"状态：{status}；对接方：{contact['organization']}；服务费：{fee_status}",
+            manager_id,
+            conn,
+        )
+        updated = db_execute(conn, "SELECT * FROM manager_projects WHERE project_id = ?", (project_id,)).fetchone()
+    return manager_project_payload(updated)
+
+
+def list_manager_settlements(manager_id: str = "", project_id: str = "") -> list[dict]:
+    clauses: list[str] = []
+    params: list[str] = []
+    if manager_id:
+        clauses.append("manager_id = ?")
+        params.append(clean_text(manager_id))
+    if project_id:
+        clauses.append("project_id = ?")
+        params.append(clean_text(project_id))
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    with db_connect() as conn:
+        rows = db_execute(
+            conn,
+            f"SELECT * FROM manager_settlements {where} ORDER BY created_at DESC",
+            params,
+        ).fetchall()
+    items: list[dict] = []
+    for row in rows:
+        item = dict(row)
+        for source, target in (
+            ("deal_amount_cents", "deal_amount"),
+            ("platform_fee_cents", "platform_fee"),
+            ("manager_share_cents", "manager_share"),
+        ):
+            cents = int(item.pop(source, 0) or 0)
+            item[target] = f"{Decimal(cents) / Decimal(100):.2f}"
+        items.append(item)
+    return items
+
+
+def get_manager_workbench(manager_id: str) -> dict:
+    manager = get_manager(manager_id)
+    with db_connect() as conn:
+        rows = db_execute(
+            conn,
+            "SELECT * FROM manager_projects WHERE manager_id = ? ORDER BY created_at DESC",
+            (manager_id,),
+        ).fetchall()
+    projects = [manager_project_payload(row) for row in rows]
+    settlements = list_manager_settlements(manager_id=manager_id)
+    return {
+        "manager": manager,
+        "projects": projects,
+        "settlements": settlements,
+        "service_modes": MANAGER_SERVICE_MODES,
+        "stats": {
+            "project_count": len(projects),
+            "active_count": sum(item.get("status") not in {"已成交", "已关闭", "审核未通过"} for item in projects),
+            "unlocked_count": sum(bool(item.get("has_counterpart_contact")) for item in projects),
+            "settled_share": f"{sum(Decimal(item.get('manager_share') or '0') for item in settlements if item.get('status') == '已结算'):.2f}",
+        },
+    }
+
+
+def list_technical_managers() -> list[dict]:
+    with db_connect() as conn:
+        rows = db_execute(
+            conn,
+            """
+            SELECT m.*,
+                   (SELECT COUNT(*) FROM manager_projects p WHERE p.manager_id = m.manager_id) AS project_count
+            FROM technical_managers m
+            ORDER BY m.created_at DESC
+            """,
+        ).fetchall()
+    return [manager_row_payload(row) for row in rows]
+
+
+def verify_technical_manager(manager_id: str, status: str, note: str, operator: str) -> dict:
+    if status not in MANAGER_VERIFICATION_STATUSES:
+        raise ValueError("请选择有效的认证状态")
+    with db_connect() as conn:
+        row = db_execute(conn, "SELECT 1 FROM technical_managers WHERE manager_id = ?", (manager_id,)).fetchone()
+        if row is None:
+            raise KeyError("未找到技术经理人账号")
+        db_execute(
+            conn,
+            "UPDATE technical_managers SET verification_status = ?, verification_note = ?, updated_at = ? WHERE manager_id = ?",
+            (status, clip(clean_text(note), 1000), now_iso(), manager_id),
+        )
+    return get_manager(manager_id)
+
+
+def list_manager_projects(*, admin: bool = False) -> list[dict]:
+    with db_connect() as conn:
+        rows = db_execute(
+            conn,
+            """
+            SELECT p.*, m.real_name AS manager_name, m.phone AS manager_phone,
+                   m.organization AS manager_organization, m.verification_status
+            FROM manager_projects p
+            JOIN technical_managers m ON m.manager_id = p.manager_id
+            ORDER BY p.created_at DESC
+            """,
+        ).fetchall()
+    return [manager_project_payload(row, admin=admin) for row in rows]
+
+
+def get_manager_project_detail(project_id: str, *, admin: bool = False) -> dict:
+    with db_connect() as conn:
+        row = db_execute(
+            conn,
+            """
+            SELECT p.*, m.real_name AS manager_name, m.phone AS manager_phone,
+                   m.organization AS manager_organization, m.verification_status
+            FROM manager_projects p
+            JOIN technical_managers m ON m.manager_id = p.manager_id
+            WHERE p.project_id = ?
+            """,
+            (clean_text(project_id),),
+        ).fetchone()
+        logs = db_execute(
+            conn,
+            "SELECT * FROM manager_project_logs WHERE project_id = ? ORDER BY created_at DESC",
+            (clean_text(project_id),),
+        ).fetchall()
+    if row is None:
+        raise KeyError("未找到经理人项目")
+    item = manager_project_payload(row, admin=admin)
+    item["logs"] = [dict(log) for log in logs]
+    item["settlements"] = list_manager_settlements(project_id=project_id)
+    return item
+
+
+def update_manager_project(project_id: str, payload: dict, operator: str) -> dict:
+    current = get_manager_project_detail(project_id, admin=True)
+    status = clean_text(payload.get("status") or current.get("status"))
+    unlock_status = clean_text(payload.get("contact_unlock_status") or current.get("contact_unlock_status"))
+    fee_status = clean_text(payload.get("service_fee_status") or current.get("service_fee_status"))
+    if status not in MANAGER_PROJECT_STATUSES:
+        raise ValueError("请选择有效的项目状态")
+    if unlock_status not in CONTACT_UNLOCK_STATUSES:
+        raise ValueError("请选择有效的联系方式解锁状态")
+    if fee_status not in SERVICE_FEE_STATUSES:
+        raise ValueError("请选择有效的服务费状态")
+    contact_payload = payload.get("counterpart_contact")
+    if isinstance(contact_payload, dict):
+        contact = {
+            key: clip(clean_text(contact_payload.get(key)), 200)
+            for key in ("name", "phone", "organization", "email")
+        }
+    else:
+        contact = current.get("counterpart_contact") or {}
+        contact.pop("unlocked", None)
+    contact_source = clean_text(current.get("counterpart_contact_source"))
+    if isinstance(contact_payload, dict):
+        if any(clean_text(contact.get(key)) for key in ("name", "phone", "organization", "email")):
+            contact_source = contact_source or "platform_recorded"
+        else:
+            contact_source = ""
+    if unlock_status == "已解锁":
+        if (
+            current.get("service_mode") == "self_service"
+            and contact_source != "manager_self_reported"
+            and fee_status not in {"已支付", "已减免"}
+        ):
+            raise ValueError("自主对接项目需先确认服务费已支付或已减免，再解锁联系方式")
+        if not any(clean_text(contact.get(key)) for key in ("phone", "email")):
+            raise ValueError("解锁前请至少填写对接方手机号或邮箱")
+    timestamp = now_iso()
+    unlocked_at = clean_text(current.get("contact_unlocked_at"))
+    if unlock_status == "已解锁" and not unlocked_at:
+        unlocked_at = timestamp
+    if unlock_status != "已解锁":
+        unlocked_at = ""
+    audit_note = clip(clean_text(payload.get("audit_note")), 2000) if "audit_note" in payload else clean_text(current.get("audit_note"))
+    match_summary = clip(clean_text(payload.get("match_summary")), 5000) if "match_summary" in payload else clean_text(current.get("match_summary"))
+    with db_connect() as conn:
+        db_execute(
+            conn,
+            """
+            UPDATE manager_projects
+            SET updated_at = ?, status = ?, audit_note = ?, match_summary = ?,
+                counterpart_contact_json = ?, counterpart_contact_source = ?, contact_unlock_status = ?,
+                contact_unlocked_at = ?, service_fee_status = ?
+            WHERE project_id = ?
+            """,
+            (
+                timestamp,
+                status,
+                audit_note,
+                match_summary,
+                json_dumps(contact),
+                contact_source,
+                unlock_status,
+                unlocked_at,
+                fee_status,
+                project_id,
+            ),
+        )
+        changes = f"状态：{status}；联系方式：{unlock_status}；服务费：{fee_status}"
+        save_manager_project_log(project_id, "后台更新项目", changes, operator, conn)
+    return get_manager_project_detail(project_id, admin=True)
+
+
+def money_to_cents(value: object) -> int:
+    text = clean_text(value).replace(",", "") or "0"
+    try:
+        amount = Decimal(text).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except InvalidOperation as exc:
+        raise ValueError("金额格式不正确") from exc
+    if amount < 0 or amount > Decimal("999999999"):
+        raise ValueError("金额必须在有效范围内")
+    return int(amount * 100)
+
+
+def save_manager_settlement(project_id: str, payload: dict, operator: str) -> dict:
+    project = get_manager_project_detail(project_id, admin=True)
+    settlement_type = clean_text(payload.get("settlement_type"))
+    status = clean_text(payload.get("status"))
+    if settlement_type not in SETTLEMENT_TYPES:
+        raise ValueError("请选择有效的结算类型")
+    if status not in SETTLEMENT_STATUSES:
+        raise ValueError("请选择有效的结算状态")
+    settlement_id = clean_text(payload.get("settlement_id")) or uuid.uuid4().hex
+    timestamp = now_iso()
+    with db_connect() as conn:
+        existing = db_execute(
+            conn,
+            "SELECT project_id, created_at FROM manager_settlements WHERE settlement_id = ?",
+            (settlement_id,),
+        ).fetchone()
+        if existing and clean_text(dict(existing).get("project_id")) != project_id:
+            raise ValueError("该结算记录不属于当前项目")
+        created_at = clean_text(dict(existing).get("created_at")) if existing else timestamp
+        db_execute(
+            conn,
+            """
+            INSERT INTO manager_settlements
+                (settlement_id, project_id, manager_id, settlement_type,
+                 deal_amount_cents, platform_fee_cents, manager_share_cents,
+                 status, note, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (settlement_id) DO UPDATE SET
+                settlement_type = excluded.settlement_type,
+                deal_amount_cents = excluded.deal_amount_cents,
+                platform_fee_cents = excluded.platform_fee_cents,
+                manager_share_cents = excluded.manager_share_cents,
+                status = excluded.status,
+                note = excluded.note,
+                updated_at = excluded.updated_at
+            """,
+            (
+                settlement_id,
+                project_id,
+                clean_text(project.get("manager_id")),
+                settlement_type,
+                money_to_cents(payload.get("deal_amount")),
+                money_to_cents(payload.get("platform_fee")),
+                money_to_cents(payload.get("manager_share")),
+                status,
+                clip(clean_text(payload.get("note")), 2000),
+                created_at,
+                timestamp,
+            ),
+        )
+        save_manager_project_log(project_id, "更新结算记录", f"{settlement_type}：{status}", operator, conn)
+    settlements = list_manager_settlements(project_id=project_id)
+    return next(item for item in settlements if item.get("settlement_id") == settlement_id)
 
 
 def decode_json_field(value: object, default: object) -> object:
@@ -4017,6 +4655,8 @@ class SlidingWindowRateLimiter:
 
 ai_request_limiter = SlidingWindowRateLimiter()
 admin_login_limiter = SlidingWindowRateLimiter()
+manager_login_limiter = SlidingWindowRateLimiter()
+manager_register_limiter = SlidingWindowRateLimiter()
 
 
 class TechNexusHandler(BaseHTTPRequestHandler):
@@ -4026,13 +4666,14 @@ class TechNexusHandler(BaseHTTPRequestHandler):
     ai_config: dict
     admin_config: dict
     admin_sessions: dict[str, dict] = {}
+    manager_sessions: dict[str, dict] = {}
 
     def log_message(self, format: str, *args: object) -> None:
         return
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path in {"", "/", "/admin"}:
+        if parsed.path in {"", "/", "/admin", "/manager"}:
             self.send_static(STATIC_DIR / "index.html")
             return
         if parsed.path.startswith("/static/"):
@@ -4059,6 +4700,29 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                     "match_count": db_count("matches"),
                 }
             )
+            return
+        if parsed.path == "/api/manager/session":
+            session = self.current_manager_session()
+            manager_id = clean_text((session or {}).get("manager_id"))
+            manager = None
+            if manager_id:
+                try:
+                    manager = get_manager(manager_id)
+                except KeyError:
+                    manager = None
+            self.send_json(
+                {
+                    "authenticated": bool(manager),
+                    "manager": manager,
+                    "csrf_token": clean_text((session or {}).get("csrf_token")) if manager else "",
+                }
+            )
+            return
+        if parsed.path == "/api/manager/workbench":
+            manager_id = self.require_manager()
+            if not manager_id:
+                return
+            self.send_json({"ok": True, **get_manager_workbench(manager_id)})
             return
         if parsed.path == "/api/public/demands":
             query = parse_qs(parsed.query)
@@ -4143,6 +4807,50 @@ class TechNexusHandler(BaseHTTPRequestHandler):
             keyword = query.get("keyword", [""])[0]
             self.send_json({"items": self.store.search(keyword=keyword, limit=60)})
             return
+        if parsed.path == "/api/admin/managers":
+            if not self.require_admin():
+                return
+            self.send_json(
+                {
+                    "items": list_technical_managers(),
+                    "verification_statuses": MANAGER_VERIFICATION_STATUSES,
+                }
+            )
+            return
+        if parsed.path == "/api/admin/manager-projects":
+            if not self.require_admin():
+                return
+            self.send_json(
+                {
+                    "items": list_manager_projects(admin=True),
+                    "project_statuses": MANAGER_PROJECT_STATUSES,
+                    "unlock_statuses": CONTACT_UNLOCK_STATUSES,
+                    "fee_statuses": SERVICE_FEE_STATUSES,
+                    "settlement_types": SETTLEMENT_TYPES,
+                    "settlement_statuses": SETTLEMENT_STATUSES,
+                }
+            )
+            return
+        if parsed.path == "/api/admin/manager-projects/detail":
+            if not self.require_admin():
+                return
+            query = parse_qs(parsed.query)
+            try:
+                project = get_manager_project_detail(query.get("project_id", [""])[0], admin=True)
+            except KeyError as exc:
+                self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+                return
+            self.send_json(
+                {
+                    "project": project,
+                    "project_statuses": MANAGER_PROJECT_STATUSES,
+                    "unlock_statuses": CONTACT_UNLOCK_STATUSES,
+                    "fee_statuses": SERVICE_FEE_STATUSES,
+                    "settlement_types": SETTLEMENT_TYPES,
+                    "settlement_statuses": SETTLEMENT_STATUSES,
+                }
+            )
+            return
         self.send_error_json(HTTPStatus.NOT_FOUND, "未找到页面")
 
     def do_POST(self) -> None:
@@ -4173,6 +4881,109 @@ class TechNexusHandler(BaseHTTPRequestHandler):
 
     def handle_post_request(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/manager/register":
+            client_ip = self.client_ip()
+            allowed, retry_after = manager_register_limiter.allow(
+                client_ip,
+                limit=5,
+                window_seconds=60 * 60,
+            )
+            if not allowed:
+                self.send_json(
+                    {"ok": False, "message": "注册尝试过多，请稍后再试"},
+                    status=HTTPStatus.TOO_MANY_REQUESTS,
+                    headers={"Retry-After": str(retry_after)},
+                )
+                return
+            try:
+                manager = register_manager(self.read_json())
+            except ValueError as exc:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            csrf_token, cookie = self.start_manager_session(manager)
+            self.send_json(
+                {"ok": True, "manager": manager, "csrf_token": csrf_token},
+                headers={"Set-Cookie": cookie},
+            )
+            return
+
+        if parsed.path == "/api/manager/login":
+            client_ip = self.client_ip()
+            allowed, retry_after = manager_login_limiter.allow(
+                client_ip,
+                limit=8,
+                window_seconds=15 * 60,
+            )
+            if not allowed:
+                self.send_json(
+                    {"ok": False, "message": "登录尝试过多，请稍后再试"},
+                    status=HTTPStatus.TOO_MANY_REQUESTS,
+                    headers={"Retry-After": str(retry_after)},
+                )
+                return
+            payload = self.read_json()
+            try:
+                manager = authenticate_manager(payload.get("phone"), payload.get("password"))
+            except ValueError as exc:
+                self.send_error_json(HTTPStatus.UNAUTHORIZED, str(exc))
+                return
+            manager_login_limiter.reset(client_ip)
+            csrf_token, cookie = self.start_manager_session(manager)
+            self.send_json(
+                {"ok": True, "manager": manager, "csrf_token": csrf_token},
+                headers={"Set-Cookie": cookie},
+            )
+            return
+
+        if parsed.path == "/api/manager/logout":
+            manager_id = self.require_manager_csrf()
+            if not manager_id:
+                return
+            token = self.current_manager_session_token()
+            if token:
+                self.manager_sessions.pop(token, None)
+            cookie = f"{MANAGER_SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{self.secure_cookie_suffix()}"
+            self.send_json({"ok": True}, headers={"Set-Cookie": cookie})
+            return
+
+        if parsed.path == "/api/manager/projects":
+            manager_id = self.require_manager_csrf()
+            if not manager_id:
+                return
+            try:
+                project = create_manager_project(manager_id, self.read_json())
+            except PermissionError as exc:
+                self.send_error_json(HTTPStatus.FORBIDDEN, str(exc))
+                return
+            except ValueError as exc:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            self.send_json({"ok": True, "project": project, **get_manager_workbench(manager_id)})
+            return
+
+        if parsed.path == "/api/manager/projects/self-service-progress":
+            manager_id = self.require_manager_csrf()
+            if not manager_id:
+                return
+            payload = self.read_json()
+            try:
+                project = save_manager_self_service_progress(
+                    manager_id,
+                    clean_text(payload.get("project_id")),
+                    payload,
+                )
+            except KeyError as exc:
+                self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+                return
+            except PermissionError as exc:
+                self.send_error_json(HTTPStatus.FORBIDDEN, str(exc))
+                return
+            except ValueError as exc:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            self.send_json({"ok": True, "project": project, **get_manager_workbench(manager_id)})
+            return
+
         if parsed.path == "/api/admin/login":
             client_ip = self.client_ip()
             allowed, retry_after = admin_login_limiter.allow(
@@ -4217,6 +5028,60 @@ class TechNexusHandler(BaseHTTPRequestHandler):
                 self.admin_sessions.pop(token, None)
             cookie = f"{SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{self.secure_cookie_suffix()}"
             self.send_json({"ok": True}, headers={"Set-Cookie": cookie})
+            return
+
+        if parsed.path == "/api/admin/managers/verify":
+            operator = self.require_admin_csrf()
+            if not operator:
+                return
+            payload = self.read_json()
+            try:
+                manager = verify_technical_manager(
+                    clean_text(payload.get("manager_id")),
+                    clean_text(payload.get("verification_status")),
+                    clean_text(payload.get("verification_note")),
+                    operator,
+                )
+            except KeyError as exc:
+                self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+                return
+            except ValueError as exc:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            self.send_json({"ok": True, "manager": manager, "items": list_technical_managers()})
+            return
+
+        if parsed.path == "/api/admin/manager-projects/update":
+            operator = self.require_admin_csrf()
+            if not operator:
+                return
+            payload = self.read_json()
+            try:
+                project = update_manager_project(clean_text(payload.get("project_id")), payload, operator)
+            except KeyError as exc:
+                self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+                return
+            except ValueError as exc:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            self.send_json({"ok": True, "project": project, "items": list_manager_projects(admin=True)})
+            return
+
+        if parsed.path == "/api/admin/manager-settlements/save":
+            operator = self.require_admin_csrf()
+            if not operator:
+                return
+            payload = self.read_json()
+            try:
+                settlement = save_manager_settlement(clean_text(payload.get("project_id")), payload, operator)
+                project = get_manager_project_detail(clean_text(payload.get("project_id")), admin=True)
+            except KeyError as exc:
+                self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+                return
+            except ValueError as exc:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            self.send_json({"ok": True, "settlement": settlement, "project": project})
             return
 
         if parsed.path == "/api/analyze-achievement":
@@ -4497,6 +5362,56 @@ class TechNexusHandler(BaseHTTPRequestHandler):
         cookies = parse_cookie(self.headers.get("Cookie", ""))
         return clean_text(cookies.get(SESSION_COOKIE))
 
+    def start_manager_session(self, manager: dict) -> tuple[str, str]:
+        token = secrets.token_urlsafe(32)
+        csrf_token = secrets.token_urlsafe(32)
+        self.manager_sessions[token] = {
+            "manager_id": clean_text(manager.get("manager_id")),
+            "expires_at": time.time() + SESSION_SECONDS,
+            "csrf_token": csrf_token,
+        }
+        cookie = (
+            f"{MANAGER_SESSION_COOKIE}={token}; Path=/; Max-Age={SESSION_SECONDS}; "
+            f"HttpOnly; SameSite=Strict{self.secure_cookie_suffix()}"
+        )
+        return csrf_token, cookie
+
+    def current_manager_session_token(self) -> str:
+        cookies = parse_cookie(self.headers.get("Cookie", ""))
+        return clean_text(cookies.get(MANAGER_SESSION_COOKIE))
+
+    def current_manager_session(self) -> dict | None:
+        token = self.current_manager_session_token()
+        if not token:
+            return None
+        session = self.manager_sessions.get(token)
+        if not session:
+            return None
+        if float(session.get("expires_at", 0)) < time.time():
+            self.manager_sessions.pop(token, None)
+            return None
+        return session
+
+    def require_manager(self) -> str:
+        session = self.current_manager_session() or {}
+        manager_id = clean_text(session.get("manager_id"))
+        if not manager_id:
+            self.send_error_json(HTTPStatus.UNAUTHORIZED, "请先登录技术经理人中心")
+            return ""
+        return manager_id
+
+    def require_manager_csrf(self) -> str:
+        manager_id = self.require_manager()
+        if not manager_id:
+            return ""
+        session = self.current_manager_session() or {}
+        expected = clean_text(session.get("csrf_token"))
+        provided = clean_text(self.headers.get("X-CSRF-Token"))
+        if not expected or not provided or not hmac.compare_digest(expected, provided):
+            self.send_error_json(HTTPStatus.FORBIDDEN, "安全校验失败，请刷新经理人中心后重试")
+            return ""
+        return manager_id
+
     def current_admin(self) -> str:
         session = self.current_admin_session()
         return clean_text((session or {}).get("username"))
@@ -4533,9 +5448,10 @@ class TechNexusHandler(BaseHTTPRequestHandler):
         return username
 
     def client_ip(self) -> str:
-        forwarded = clean_text(self.headers.get("X-Forwarded-For"))
-        if forwarded:
-            return clean_text(forwarded.split(",", 1)[0])
+        if TRUST_PROXY_HEADERS:
+            forwarded = clean_text(self.headers.get("X-Forwarded-For"))
+            if forwarded:
+                return clean_text(forwarded.split(",", 1)[0])
         return clean_text(self.client_address[0] if self.client_address else "unknown")
 
     def allow_ai_request(self) -> bool:
@@ -4554,7 +5470,8 @@ class TechNexusHandler(BaseHTTPRequestHandler):
         return False
 
     def request_is_https(self) -> bool:
-        return clean_text(self.headers.get("X-Forwarded-Proto")).lower() == "https" or os.getenv("TECHNEXUS_HTTPS_ONLY") == "1"
+        forwarded_https = TRUST_PROXY_HEADERS and clean_text(self.headers.get("X-Forwarded-Proto")).lower() == "https"
+        return forwarded_https or os.getenv("TECHNEXUS_HTTPS_ONLY") == "1"
 
     def secure_cookie_suffix(self) -> str:
         return "; Secure" if self.request_is_https() else ""

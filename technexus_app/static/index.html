@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TechNexus 技术经理人</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" type="image/png" href="/static/assets/wechat-official-avatar.png" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260829-manager-two-path" />
 </head>
 <body>
   <div class="app">
@@ -25,11 +26,8 @@
         <button data-view="results" title="匹配结果"><i data-lucide="scan-search"></i><span>匹配结果</span></button>
         <button data-view="intent" title="申请对接"><i data-lucide="handshake"></i><span>申请对接</span></button>
         <button data-view="progress" title="进度查询"><i data-lucide="list-checks"></i><span>进度查询</span></button>
+        <button data-view="manager" title="经理人中心"><i data-lucide="briefcase-business"></i><span>经理人中心</span></button>
       </nav>
-      <div class="fee-note">
-        <strong>5%</strong>
-        <span>通过平台撮合并实际成交后，按成交金额收取技术撮合中介服务费。需求方身份及联系方式不在前台展示。</span>
-      </div>
     </aside>
 
     <main>
@@ -39,6 +37,7 @@
           <p id="page-subtitle">提交技术成果，AI 匹配江苏真实技术需求，合作意向由平台人工审核和撮合。</p>
         </div>
         <div class="top-actions">
+          <button class="btn ghost" data-view="manager"><i data-lucide="briefcase-business"></i>经理人入口</button>
           <button class="btn primary" data-view="submit"><i data-lucide="sparkles"></i>开始匹配</button>
         </div>
       </header>
@@ -222,7 +221,7 @@
             <div class="band-header">
               <div>
                 <h2>技术成果提交</h2>
-                <p>这里只填写技术内容；姓名、手机号和单位将在你选择需求并申请对接时填写。</p>
+                <p>首次提交与查看匹配结果免费；这里只填写技术内容，联系方式在申请对接阶段再填写。</p>
               </div>
               <button class="btn primary" id="submit-match"><i data-lucide="sparkles"></i>开始AI智能匹配</button>
             </div>
@@ -244,7 +243,7 @@
                   技术内容
                   <textarea name="achievement_text" class="achievement-textarea" maxlength="30000" placeholder="请直接粘贴或描述你的技术成果。建议包含：成果名称、解决的问题、核心原理或技术路线、应用场景、已验证指标、成熟度、样品/专利/案例和期望合作方向。系统会自动完成结构化分析。" required></textarea>
                 </label>
-                <p class="form-note full">本阶段不收集联系方式。技术内容仅用于候选需求召回与匹配分析；选择具体需求后，再进入“申请对接”填写联系方式。</p>
+                <p class="form-note full">免费提交并查看初步匹配结果。本阶段不收集联系方式；选择具体需求后，再进入“申请对接”填写联系方式。</p>
               </form>
             </div>
           </div>
@@ -421,6 +420,185 @@
           </div>
         </section>
 
+        <section class="view" id="manager">
+          <div class="band manager-flow-band">
+            <div class="band-header manager-flow-header">
+              <div>
+                <span class="eyebrow">HOW IT WORKS</span>
+                <h2>技术经理人操作流程</h2>
+                <p>先免费完成注册、认证和企业需求提交，再根据项目选择一种对接方式。</p>
+              </div>
+              <span class="free-stage-badge"><i data-lucide="circle-check-big"></i>前三步全部免费</span>
+            </div>
+            <div class="band-body manager-flow-body">
+              <div class="manager-flow-common" aria-label="免费操作流程">
+                <div class="manager-flow-step">
+                  <span class="flow-index">01</span>
+                  <i data-lucide="user-plus"></i>
+                  <div><strong>免费注册</strong><small>填写姓名、手机号、机构及认证说明</small></div>
+                </div>
+                <i class="flow-arrow" data-lucide="arrow-right"></i>
+                <div class="manager-flow-step">
+                  <span class="flow-index">02</span>
+                  <i data-lucide="badge-check"></i>
+                  <div><strong>平台认证</strong><small>平台人工核验技术经理人身份</small></div>
+                </div>
+                <i class="flow-arrow" data-lucide="arrow-right"></i>
+                <div class="manager-flow-step">
+                  <span class="flow-index">03</span>
+                  <i data-lucide="file-up"></i>
+                  <div><strong>免费提交需求</strong><small>用一个大文本框描述企业技术问题</small></div>
+                </div>
+              </div>
+
+              <div class="manager-flow-branch-label">
+                <span></span><strong>选择后续对接方式</strong><span></span>
+              </div>
+              <div class="manager-flow-branches">
+                <article class="manager-flow-branch entrusted">
+                  <div class="branch-icon"><i data-lucide="handshake"></i></div>
+                  <div>
+                    <span class="branch-code">路径 A</span>
+                    <h3>委托平台共同撮合</h3>
+                    <p>平台负责人工筛选、联系双方和推进合作；<strong>只有实际撮合成交后</strong>，再按协议结算并与技术经理人分享中介收益。</p>
+                  </div>
+                  <span class="branch-fee success">成交后结算</span>
+                </article>
+                <article class="manager-flow-branch self-service">
+                  <div class="branch-icon"><i data-lucide="contact-round"></i></div>
+                  <div>
+                    <span class="branch-code">路径 B</span>
+                    <h3>经理人自主联系对接</h3>
+                    <p>技术经理人自行寻找并联系技术资源，平台提供需求建档、过程跟踪和合作记录；项目进入实质对接后按约定支付少量平台服务费。</p>
+                  </div>
+                  <span class="branch-fee">实质对接后确认</span>
+                </article>
+              </div>
+            </div>
+          </div>
+
+          <div id="manager-auth-panel" class="manager-auth-grid">
+            <div class="band">
+              <div class="band-header">
+                <div>
+                  <span class="eyebrow">TECH MANAGER</span>
+                  <h2>登录经理人中心</h2>
+                  <p>管理企业需求、对接进度和收益结算。</p>
+                </div>
+              </div>
+              <div class="band-body">
+                <form id="manager-login-form" class="form-grid single-column-form">
+                  <label>手机号<input name="phone" inputmode="numeric" autocomplete="username" placeholder="请输入注册手机号" required /></label>
+                  <label>密码<input name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required /></label>
+                  <button class="btn primary" id="manager-login-submit" type="submit"><i data-lucide="log-in"></i>登录</button>
+                </form>
+              </div>
+            </div>
+            <div class="band manager-register-band">
+              <div class="band-header">
+                <div>
+                  <span class="eyebrow">JOIN THE NETWORK</span>
+                  <h2>申请成为技术经理人</h2>
+                  <p>注册与认证申请免费，认证通过即可免费上传企业技术需求。</p>
+                </div>
+              </div>
+              <div class="band-body">
+                <form id="manager-register-form" class="form-grid">
+                  <label>真实姓名<input name="real_name" autocomplete="name" placeholder="请输入真实姓名" required /></label>
+                  <label>手机号<input name="phone" type="tel" inputmode="numeric" autocomplete="username" placeholder="11 位手机号" required /></label>
+                  <label class="full">所在机构<input name="organization" autocomplete="organization" placeholder="技术转移机构、高校院所或服务机构" required /></label>
+                  <label class="full">证书编号 / 认证说明<input name="credential_no" placeholder="填写技术经理人证书编号；暂无证书可说明从业经历" required /></label>
+                  <label>设置密码<input name="password" type="password" autocomplete="new-password" placeholder="至少 8 位" required /></label>
+                  <label>确认密码<input name="password_confirm" type="password" autocomplete="new-password" placeholder="再次输入密码" required /></label>
+                  <button class="btn primary full" id="manager-register-submit" type="submit"><i data-lucide="user-plus"></i>免费提交认证申请</button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <div id="manager-content" class="manager-content" hidden>
+            <div class="admin-session manager-session-bar">
+              <div>
+                <span>技术经理人：<strong id="manager-display-name">-</strong></span>
+                <span id="manager-verification-badge" class="status-pill">待认证</span>
+              </div>
+              <button class="btn ghost" id="manager-logout"><i data-lucide="log-out"></i>退出登录</button>
+            </div>
+            <div id="manager-verification-notice" class="manager-notice"></div>
+            <div class="dashboard-grid manager-kpi-grid">
+              <div class="kpi"><span>全部项目</span><strong id="manager-project-count">0</strong></div>
+              <div class="kpi"><span>进行中</span><strong id="manager-active-count">0</strong></div>
+              <div class="kpi"><span>已登记对接方</span><strong id="manager-unlocked-count">0</strong></div>
+              <div class="kpi"><span>累计已结算分成</span><strong><small>¥</small><span id="manager-settled-share">0.00</span></strong></div>
+            </div>
+
+            <div class="manager-workbench-grid">
+              <div class="band manager-submit-band">
+                <div class="band-header">
+                  <div>
+                    <h2>上传企业技术需求</h2>
+                    <p>企业需求提交免费，只需粘贴完整内容并选择合作方式。</p>
+                  </div>
+                </div>
+                <div class="band-body">
+                  <form id="manager-project-form" class="form-grid single-input-form">
+                    <label class="full">
+                      企业技术需求
+                      <textarea name="enterprise_demand_text" class="achievement-textarea manager-demand-textarea" maxlength="30000" placeholder="建议包含：企业所处行业、需要解决的问题、现有工艺或产品、关键技术指标、应用场景、验证条件、预算或时间要求。企业名称和敏感信息可暂不填写。" required></textarea>
+                    </label>
+                    <fieldset class="full service-mode-fieldset">
+                      <legend>选择服务方式</legend>
+                      <label class="service-mode-card active">
+                        <input type="radio" name="service_mode" value="entrusted" checked />
+                        <i data-lucide="handshake"></i>
+                        <span><strong>委托平台匹配</strong><small>注册、提交和初步匹配免费；平台撮合成交后再按约定分享中介收益。</small></span>
+                      </label>
+                      <label class="service-mode-card">
+                        <input type="radio" name="service_mode" value="self_service" />
+                        <i data-lucide="contact-round"></i>
+                        <span><strong>自主联系对接</strong><small>经理人自行寻找和联系技术资源；进入实质对接后再按约定确认少量平台服务费。</small></span>
+                      </label>
+                    </fieldset>
+                    <button class="btn primary full" id="manager-project-submit" type="submit"><i data-lucide="send"></i>免费提交企业需求</button>
+                  </form>
+                </div>
+              </div>
+
+              <aside class="band manager-rules-band">
+                <div class="band-header"><div><h2>免费范围与合作规则</h2><p>费用仅在实际获得进阶服务后触发。</p></div></div>
+                <div class="band-body manager-rule-list">
+                  <div><span>01</span><p><strong>免费前期服务</strong>注册、认证申请和提交企业技术需求均不收费。</p></div>
+                  <div><span>02</span><p><strong>委托平台</strong>平台人工复核并推进双方沟通，只有实际撮合成交后才按约定结算。</p></div>
+                  <div><span>03</span><p><strong>自主对接</strong>经理人自行寻找和联系技术资源，进入实质对接后再确认少量平台服务费。</p></div>
+                  <div><span>04</span><p><strong>数据留痕</strong>联系方式由后端分阶段保护，审核、解锁和结算均保留记录。</p></div>
+                </div>
+              </aside>
+            </div>
+
+            <div class="band">
+              <div class="band-header">
+                <div><h2>我的企业需求项目</h2><p>查看审核、匹配、联系方式解锁与对接状态。</p></div>
+                <button class="btn ghost" id="manager-refresh"><i data-lucide="refresh-cw"></i>刷新</button>
+              </div>
+              <div class="band-body">
+                <div id="manager-project-list" class="manager-project-list"><div class="empty-state">暂无项目</div></div>
+              </div>
+            </div>
+
+            <div class="band">
+              <div class="band-header"><div><h2>收益与服务费记录</h2><p>委托项目展示分成，自主对接项目展示平台服务费。</p></div></div>
+              <div class="band-body">
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>更新时间</th><th>项目</th><th>类型</th><th>成交额</th><th>平台费用</th><th>经理人分成</th><th>状态</th></tr></thead>
+                    <tbody id="manager-settlement-table"><tr><td colspan="7">暂无结算记录</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section class="view" id="admin">
           <div class="band admin-login" id="admin-login-panel">
             <div class="band-header">
@@ -454,6 +632,44 @@
               <div class="kpi"><span>匹配记录</span><strong id="admin-match-count">-</strong></div>
               <div class="kpi"><span>合作意向</span><strong id="admin-intent-count">-</strong></div>
               <div class="kpi"><span>AI 模式</span><strong id="admin-ai-mode">-</strong></div>
+              <div class="kpi"><span>技术经理人</span><strong id="admin-manager-count">-</strong></div>
+              <div class="kpi"><span>经理人项目</span><strong id="admin-manager-project-count">-</strong></div>
+            </div>
+            <div class="admin-layout manager-admin-layout">
+              <div class="band">
+                <div class="band-header">
+                  <div><h2>技术经理人认证</h2><p>核验身份和从业信息，认证通过后才能上传企业需求。</p></div>
+                  <button class="btn ghost" id="admin-manager-refresh"><i data-lucide="refresh-cw"></i>刷新</button>
+                </div>
+                <div class="band-body">
+                  <div class="table-wrap manager-table-wrap">
+                    <table>
+                      <thead><tr><th>申请时间</th><th>姓名 / 手机</th><th>机构</th><th>证书 / 说明</th><th>项目</th><th>认证</th><th>操作</th></tr></thead>
+                      <tbody id="admin-manager-table"><tr><td colspan="7">暂无认证申请</td></tr></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div class="band">
+                <div class="band-header"><div><h2>认证处理</h2><p>选择申请后填写审核结论。</p></div></div>
+                <div class="band-body"><div id="admin-manager-detail" class="empty-state">请选择技术经理人申请。</div></div>
+              </div>
+            </div>
+
+            <div class="band">
+              <div class="band-header">
+                <div><h2>经理人企业需求项目</h2><p>审核项目、维护匹配与对接进展，并登记实际合作和人工结算。</p></div>
+                <button class="btn ghost" id="admin-manager-project-refresh"><i data-lucide="refresh-cw"></i>刷新</button>
+              </div>
+              <div class="band-body">
+                <div class="table-wrap manager-project-table-wrap">
+                  <table>
+                    <thead><tr><th>时间 / 编号</th><th>技术经理人</th><th>服务方式</th><th>需求摘要</th><th>项目状态</th><th>联系人</th><th>结算</th><th>操作</th></tr></thead>
+                    <tbody id="admin-manager-project-table"><tr><td colspan="8">暂无经理人项目</td></tr></tbody>
+                  </table>
+                </div>
+                <div id="admin-manager-project-detail" class="manager-project-admin-detail empty-state">请选择一个经理人项目进行审核与结算。</div>
+              </div>
             </div>
             <div class="band">
               <div class="band-header">
@@ -567,6 +783,6 @@
 
   <div class="toast" id="toast"></div>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20260829-manager-two-path"></script>
 </body>
 </html>

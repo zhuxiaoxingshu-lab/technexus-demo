@@ -1,3 +1,5 @@
+server_tokens off;
+
 limit_req_zone $binary_remote_addr zone=technexus_api:10m rate=60r/m;
 limit_req_zone $binary_remote_addr zone=technexus_ai:10m rate=6r/m;
 limit_req_zone $binary_remote_addr zone=technexus_admin_login:10m rate=5r/m;

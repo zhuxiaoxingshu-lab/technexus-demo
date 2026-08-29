@@ -1,5 +1,7 @@
 admin_config.json
+ai_config.json
 technexus_data/
+.venv/
 technexus_local_preview.err.log
 technexus_local_preview.out.log
 initial_admin_password.txt

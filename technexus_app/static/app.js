@@ -238,7 +238,7 @@ async function runMatch(payload, button) {
     state.matchMode === "quick"
       ? "正在进行快速匹配：比较技术标的、核心问题、所需功能、技术路线和指标..."
       : "第 1 步：正在解析成果并生成初步能力画像...";
-  $("#result-status").style.display = "block";
+  $("#result-status").hidden = false;
   renderResultMeta({});
   $("#result-list").innerHTML = "";
   let progressTimer = null;
@@ -265,7 +265,7 @@ async function runMatch(payload, button) {
     state.matchMeta = response.ai_meta || {};
     if (response.ai_meta?.message) {
       $("#result-status").textContent = response.ai_meta.message;
-      $("#result-status").style.display = "block";
+      $("#result-status").hidden = false;
     }
     renderResults(state.results);
     updateStats(response);
@@ -273,6 +273,7 @@ async function runMatch(payload, button) {
     toast(`${response.ai_meta?.used_ai ? "DeepSeek AI 已精排" : currentMatchModeLabel() + "已完成"}，生成 ${state.results.length} 条结果`);
   } catch (error) {
     $("#result-status").textContent = error.message;
+    $("#result-status").hidden = false;
     toast(error.message);
   } finally {
     if (progressTimer) window.clearInterval(progressTimer);
@@ -512,11 +513,11 @@ function renderResults(results) {
   if (!results.length) {
     renderResultMeta();
     status.textContent = "暂未找到技术匹配度达到45分的需求。建议补充技术原理、可解决的问题、量化指标、样品或案例后重试。";
-    status.style.display = "block";
+    status.hidden = false;
     list.innerHTML = "";
     return;
   }
-  status.style.display = "none";
+  status.hidden = true;
   renderResultMeta();
   list.innerHTML = results
     .map((item, index) => {
@@ -585,7 +586,7 @@ function scoreBar(name, value = 0) {
   return `
     <div class="score-bar">
       ${escapeHtml(name)} ${safe}
-      <div class="bar"><span style="width:${safe}%"></span></div>
+      <progress class="bar" max="100" value="${safe}" aria-label="${escapeHtml(name)} ${safe} 分"></progress>
     </div>
   `;
 }

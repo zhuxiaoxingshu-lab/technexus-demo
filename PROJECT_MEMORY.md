@@ -122,3 +122,15 @@
 - 数据层最终核对为 2 名已认证经理人、2 个已成交项目、2 条已结算记录和 13 条项目操作日志；经理人端、后台与数据库状态一致。
 - 单元测试 `tests/test_manager_p0.py` 为 5/5 通过，HTTP 端到端脚本通过，Python/JavaScript 语法检查通过，三个浏览器会话控制台 Errors 0、Warnings 0。
 - 测试计划为 `specs/manager-two-path-end-to-end.plan.md`；15 张逐阶段后台截图与完整报告保存于 `output/manager_two_path_qa_20260829/`。当前仍为本地验证，尚未部署生产。
+
+## 2026-08-29 生产上线、综合审计与演示视频
+
+- 技术经理人 P0 已部署到阿里云生产环境，生产 Git 版本为 `c6b1a00`；正式地址为 `https://yuanshuzhuan.cn`，应用仍以阿里云 SQLite 作为唯一线上数据库。
+- 发布前完成数据库与代码备份；生产真实流程测试完成后、清理测试数据前又生成 `technexus-20260829T061520Z.db.gz`，SHA-256 为 `036dd55a62f40a717c5ca9c3bd78051a8481f637690f34900f0deb60ede33d67`，完整性为 `ok`。
+- 生产环境真实跑通匿名成果提交、DeepSeek 精排、申请对接、查询码、两名经理人注册认证、委托平台和自主对接两条路径、后台状态流转及人工结算。线上审计数据使用唯一 QA 标识，验收后按精确 ID 清理；清理后保留 5,260 条需求、5,260 条画像、22 条既有匹配、0 条审计合作意向和 0 条审计经理人项目，数据库完整性为 `ok`。
+- 本轮修复严格 CSP 禁止内联样式导致匹配分数条和状态显示异常的问题：动态分数改为原生 `progress`，状态切换改用 `hidden`；新会话控制台 Errors 0、Warnings 0。
+- 首页承诺从固定“5 条”改为“最多 5 条”，并删除内部宣传备注；图标库从 unpkg `latest` 改为固定 `1.35.0` 并增加 SHA-384 SRI；HTTP 跳转页已隐藏 Nginx 版本号。
+- 线上安全验证：HTTP 301、未授权后台 401、管理员与经理人缺失 CSRF 403、超 128 KB 请求体 413；CSP、HSTS、X-Frame-Options、X-Content-Type-Options、Referrer-Policy、Permissions-Policy 均生效。
+- 两次 DeepSeek 真实精排耗时为 33.604 秒和 43.762 秒，普通首页在本次审计网络下 TTFB 约 1.395 秒、总耗时约 1.604 秒。AI 等待分阶段反馈和快速降级是下一轮 P1 优先项。
+- 单元测试 `tests/test_manager_p0.py` 为 5/5 通过；HTTP 端到端脚本需使用 `pwsh` 运行以正确处理 UTF-8 中文内容，完整链路通过。
+- 综合报告、15 张截图、9 段 MP4/WebM 真实使用演示和逐段抽帧验收保存在 `output/production_online_audit_20260829/`。正式商业化前的 P0 为：真实运营主体与法律条款、后台二次认证、异地备份和恢复演练。
